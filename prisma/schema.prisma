@@ -14,23 +14,111 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Member {
-  id          Int        @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   firstName   String
   lastName    String
-  email       String     @unique
+  email       String       @unique
   phone       String
+  address     String?
+  dateOfBirth DateTime?
   memberships Membership[]
+  attendances Attendance[]
+
+  // Many-to-many relation with Class
+  classes     Class[]      @relation("ClassMembers")
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Class {
+  id          Int        @id @default(autoincrement())
+  name        String
+  trainer     Trainer    @relation(fields: [trainerId], references: [id])
+  trainerId   Int
+  startTime   DateTime
+  endTime     DateTime
+
+  // Many-to-many relation with Member
+  members     Member[]   @relation("ClassMembers")
+
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
 
+
 model Membership {
-  id        Int      @id @default(autoincrement())
-  type      String
+  id        Int       @id @default(autoincrement())
+  plan      Plan      @relation(fields: [planId], references: [id])
+  planId    Int
+  member    Member    @relation(fields: [memberId], references: [id])
+  memberId  Int
   startDate DateTime
   endDate   DateTime
+  status    MembershipStatus @default(ACTIVE)
+  payments  Payment[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model Plan {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  price       Float
+  durationDays Int         // Number of days the plan is valid
+  memberships Membership[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Trainer {
+  id          Int       @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  phone       String
+  speciality  String?
+  classes     Class[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+
+model Payment {
+  id            Int        @id @default(autoincrement())
+  membership    Membership @relation(fields: [membershipId], references: [id])
+  membershipId  Int
+  amount        Float
+  paymentDate   DateTime   @default(now())
+  method        PaymentMethod
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  ONLINE
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
   member    Member   @relation(fields: [memberId], references: [id])
   memberId  Int
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
 }
