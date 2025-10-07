@@ -112,9 +112,14 @@ export class EnrollmentsService {
       });
   }
 
-  async approveBill(membershipId: number) {
+  async approveBill(membershipId: number | string) {
+    const id =
+      typeof membershipId === 'string'
+        ? parseInt(membershipId, 10)
+        : membershipId;
+
     const membership = await this.prisma.membership.findUnique({
-      where: { id: membershipId },
+      where: { id },
       include: { plan: true, payments: true },
     });
 
@@ -126,19 +131,23 @@ export class EnrollmentsService {
       throw new Error('Cannot approve: pending amount exists');
     }
 
-    // Optionally update status
+    // Update status
     await this.prisma.membership.update({
-      where: { id: membershipId },
+      where: { id },
       data: { status: 'ACTIVE' },
     });
 
     return { message: 'Bill approved successfully' };
   }
 
-  async rejectBill(membershipId: number) {
+  async rejectBill(membershipId: number | string) {
     // Option 1: mark membership as INACTIVE or CANCELLED
+    const id =
+      typeof membershipId === 'string'
+        ? parseInt(membershipId, 10)
+        : membershipId;
     await this.prisma.membership.update({
-      where: { id: membershipId },
+      where: { id },
       data: { status: 'CANCELLED' },
     });
 
