@@ -1,17 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Member, Prisma } from '@prisma/client';
+import { CreateMemberDto } from './dto/create-member.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 
 @Injectable()
 export class MembersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: Prisma.MemberCreateInput): Promise<Member> {
-    return this.prisma.member.create({ data });
+  async create(data: CreateMemberDto): Promise<Member> {
+    const cleanData: Prisma.MemberCreateInput = {
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      email: data.email.toLowerCase().trim(),
+      phone: data.phone.trim(),
+      address: data.address?.trim(),
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+    };
+
+    return this.prisma.member.create({ data: cleanData });
   }
 
   async findAll(): Promise<Member[]> {
     return this.prisma.member.findMany({
+      orderBy: { createdAt: 'desc' },
       include: {
         memberships: true,
         attendances: true,
@@ -20,8 +32,8 @@ export class MembersService {
     });
   }
 
-  async findOne(id: number): Promise<Member | null> {
-    return this.prisma.member.findUnique({
+  async findOne(id: number): Promise<Member> {
+    const member = await this.prisma.member.findUnique({
       where: { id },
       include: {
         memberships: true,
@@ -29,18 +41,38 @@ export class MembersService {
         classes: true,
       },
     });
+
+    if (!member) throw new NotFoundException(`Member with ID ${id} not found`);
+    return member;
   }
 
-  async update(id: number, data: Prisma.MemberUpdateInput): Promise<Member> {
+  async update(id: number, data: UpdateMemberDto): Promise<Member> {
+    const existing = await this.prisma.member.findUnique({ where: { id } });
+    if (!existing)
+      throw new NotFoundException(`Member with ID ${id} not found`);
+
+    const cleanData: Prisma.MemberUpdateInput = {
+      ...data,
+      firstName: data.firstName?.trim(),
+      lastName: data.lastName?.trim(),
+      email: data.email?.toLowerCase().trim(),
+      phone: data.phone?.trim(),
+      address: data.address?.trim(),
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      updatedAt: new Date(),
+    };
+
     return this.prisma.member.update({
       where: { id },
-      data,
+      data: cleanData,
     });
   }
 
   async remove(id: number): Promise<Member> {
-    return this.prisma.member.delete({
-      where: { id },
-    });
+    const existing = await this.prisma.member.findUnique({ where: { id } });
+    if (!existing)
+      throw new NotFoundException(`Member with ID ${id} not found`);
+
+    return this.prisma.member.delete({ where: { id } });
   }
 }

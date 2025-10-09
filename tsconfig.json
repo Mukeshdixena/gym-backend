@@ -20,7 +20,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    // "ignoreDeprecations": "6.0" // Add this to suppress the warning
+    // "ignoreDeprecations": "6.0" 
   },
   "include": [
     "src",

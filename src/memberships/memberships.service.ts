@@ -1,41 +1,73 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Membership, Prisma } from '@prisma/client';
+import { CreateMembershipDto } from './dto/create-membership.dto';
+import { MembershipStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class MembershipsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: Prisma.MembershipCreateInput): Promise<Membership> {
-    return this.prisma.membership.create({ data });
+  async create(data: CreateMembershipDto) {
+    try {
+      const member = await this.prisma.member.findUnique({
+        where: { id: data.memberId },
+      });
+      if (!member) throw new BadRequestException('Member not found');
+
+      const plan = await this.prisma.plan.findUnique({
+        where: { id: data.planId },
+      });
+      if (!plan) throw new BadRequestException('Plan not found');
+
+      const pending = plan.price - (data.paid + data.discount);
+
+      const membership = await this.prisma.membership.create({
+        data: {
+          member: { connect: { id: data.memberId } },
+          plan: { connect: { id: data.planId } },
+          startDate: new Date(data.startDate),
+          endDate: new Date(data.endDate),
+          status:
+            pending <= 0 ? MembershipStatus.ACTIVE : MembershipStatus.INACTIVE,
+          paid: data.paid,
+          discount: data.discount,
+          pending,
+        },
+        include: {
+          plan: true,
+          member: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Membership created successfully',
+        data: membership,
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new BadRequestException('Database constraint error');
+      }
+      throw new InternalServerErrorException('Failed to create membership');
+    }
   }
 
-  async findAll(): Promise<Membership[]> {
+  async findAll() {
     return this.prisma.membership.findMany({
-      include: { member: true, plan: true, payments: true },
+      include: { plan: true, member: true },
     });
   }
 
-  async findOne(id: number): Promise<Membership | null> {
-    return this.prisma.membership.findUnique({
+  async findOne(id: number) {
+    const membership = await this.prisma.membership.findUnique({
       where: { id },
-      include: { member: true, plan: true, payments: true },
+      include: { plan: true, member: true },
     });
-  }
-
-  async update(
-    id: number,
-    data: Prisma.MembershipUpdateInput,
-  ): Promise<Membership> {
-    return this.prisma.membership.update({
-      where: { id },
-      data,
-    });
-  }
-
-  async remove(id: number): Promise<Membership> {
-    return this.prisma.membership.delete({
-      where: { id },
-    });
+    if (!membership) throw new BadRequestException('Membership not found');
+    return membership;
   }
 }
