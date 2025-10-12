@@ -4,7 +4,9 @@ import {
   IsOptional,
   IsNumber,
   Min,
+  IsEnum,
 } from 'class-validator';
+import { PaymentMethod } from '@prisma/client';
 
 export class CreateMembershipDto {
   @IsInt()
@@ -31,4 +33,8 @@ export class CreateMembershipDto {
   @IsNumber()
   @Min(0)
   pending?: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  method?: PaymentMethod; // <- add this
 }
