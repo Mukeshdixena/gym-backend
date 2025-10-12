@@ -11,7 +11,6 @@ import {
   NotFoundException,
   UsePipes,
   ValidationPipe,
-  Logger,
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { Prisma } from '@prisma/client';
@@ -20,8 +19,6 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 
 @Controller('members')
 export class MembersController {
-  private readonly logger = new Logger(MembersController.name);
-
   constructor(private readonly membersService: MembersService) {}
 
   @Post()
@@ -29,7 +26,6 @@ export class MembersController {
   async create(@Body() data: CreateMemberDto) {
     try {
       const member = await this.membersService.create(data);
-      this.logger.log(`✅ Member created: ${member.email}`);
       return {
         success: true,
         message: 'Member created successfully',
@@ -61,7 +57,6 @@ export class MembersController {
   async update(@Param('id') id: string, @Body() data: UpdateMemberDto) {
     try {
       const updated = await this.membersService.update(Number(id), data);
-      this.logger.log(`📝 Member updated: ID ${id}`);
       return {
         success: true,
         message: 'Member updated successfully',
@@ -76,7 +71,6 @@ export class MembersController {
   async remove(@Param('id') id: string) {
     try {
       await this.membersService.remove(Number(id));
-      this.logger.warn(`🗑️ Member deleted: ID ${id}`);
       return { success: true, message: 'Member deleted successfully' };
     } catch (error) {
       this.handlePrismaError(error);
@@ -84,8 +78,6 @@ export class MembersController {
   }
 
   private handlePrismaError(error: any): never {
-    this.logger.error(error.message);
-
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
         throw new BadRequestException('Email already exists.');
