@@ -51,7 +51,7 @@ export class MembershipsService {
             membershipId: membership.id,
             amount: paid,
             paymentDate: new Date(),
-            method: PaymentMethod.CASH, // default or could come from DTO
+            method: data.method ?? PaymentMethod.CASH,
           },
         });
       }

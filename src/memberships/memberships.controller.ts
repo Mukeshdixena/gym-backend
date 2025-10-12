@@ -44,7 +44,6 @@ export class MembershipsController {
     return this.membershipsService.findOne(parsedId);
   }
 
-  // ✅ PATCH — Update membership details
   @Patch(':id')
   async updateMembership(
     @Param('id') id: string,
@@ -61,7 +60,7 @@ export class MembershipsController {
     }
   }
 
-  @Patch(':id/payment')
+  @Patch('payment/:id')
   async addPayment(
     @Param('id') id: string,
     @Body() body: { amount: number; discount?: number; method: string },
@@ -69,7 +68,7 @@ export class MembershipsController {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
 
-    if (!body.amount || body.amount <= 0) {
+    if (!body.amount || body.amount <= 0 || !body.discount) {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
