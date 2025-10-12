@@ -119,8 +119,7 @@ export class MembershipsService {
     let newPending = membership.plan.price - newPaid - newDiscount;
     let newStatus = membership.status;
 
-    // Only update payment if amount is provided
-    if (data.amount !== undefined && data.method) {
+    if (data.amount !== undefined && data.method && data.amount > 0) {
       const additionalPaid = data.amount;
       const additionalDiscount = data.discount ?? 0;
 
@@ -128,7 +127,6 @@ export class MembershipsService {
       newDiscount += additionalDiscount;
       newPending = membership.plan.price - (newPaid + newDiscount);
 
-      // Determine new status
       if (newPending <= 0) {
         newStatus = MembershipStatus.ACTIVE;
       } else if (newPending > 0 && newPaid > 0) {
@@ -140,7 +138,6 @@ export class MembershipsService {
         newStatus = MembershipStatus.INACTIVE;
       }
 
-      // Record new payment
       await this.prisma.payment.create({
         data: {
           membershipId: membership.id,
@@ -151,7 +148,6 @@ export class MembershipsService {
       });
     }
 
-    // Override status if explicitly provided
     if (data.status) {
       newStatus = data.status;
     }
