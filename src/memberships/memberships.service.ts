@@ -98,13 +98,13 @@ export class MembershipsService {
     });
   }
 
-  // ✅ Add payment and update membership
   async addPayment(
     id: number,
     data: {
-      amount: number;
+      amount?: number;
       discount?: number;
-      method: keyof typeof PaymentMethod;
+      method?: keyof typeof PaymentMethod;
+      status?: keyof typeof MembershipStatus;
     },
   ) {
     const membership = await this.prisma.membership.findUnique({
@@ -114,22 +114,48 @@ export class MembershipsService {
 
     if (!membership) throw new BadRequestException('Membership not found');
 
-    const additionalPaid = data.amount;
-    const additionalDiscount = data.discount ?? 0;
+    let newPaid = membership.paid ?? 0;
+    let newDiscount = membership.discount ?? 0;
+    let newPending = membership.plan.price - newPaid - newDiscount;
+    let newStatus = membership.status;
 
-    const newPaid = (membership.paid ?? 0) + additionalPaid;
-    const newDiscount = (membership.discount ?? 0) + additionalDiscount;
-    const newPending = membership.plan.price - (newPaid + newDiscount);
+    // Only update payment if amount is provided
+    if (data.amount !== undefined && data.method) {
+      const additionalPaid = data.amount;
+      const additionalDiscount = data.discount ?? 0;
 
-    let newStatus: MembershipStatus = MembershipStatus.INACTIVE;
+      newPaid += additionalPaid;
+      newDiscount += additionalDiscount;
+      newPending = membership.plan.price - (newPaid + newDiscount);
 
-    if (newPending <= 0) {
-      newStatus = MembershipStatus.ACTIVE;
-    } else if (newPending > 0 && newPaid > 0) {
-      newStatus = MembershipStatus.INACTIVE;
+      // Determine new status
+      if (newPending <= 0) {
+        newStatus = MembershipStatus.ACTIVE;
+      } else if (newPending > 0 && newPaid > 0) {
+        newStatus =
+          data.status === 'PARTIAL_PAID'
+            ? MembershipStatus.PARTIAL_PAID
+            : MembershipStatus.INACTIVE;
+      } else {
+        newStatus = MembershipStatus.INACTIVE;
+      }
+
+      // Record new payment
+      await this.prisma.payment.create({
+        data: {
+          membershipId: membership.id,
+          amount: additionalPaid,
+          paymentDate: new Date(),
+          method: data.method,
+        },
+      });
     }
 
-    // Update membership
+    // Override status if explicitly provided
+    if (data.status) {
+      newStatus = data.status;
+    }
+
     const updatedMembership = await this.prisma.membership.update({
       where: { id },
       data: {
@@ -141,19 +167,9 @@ export class MembershipsService {
       include: { plan: true, member: true, payments: true },
     });
 
-    // Record new payment
-    await this.prisma.payment.create({
-      data: {
-        membershipId: membership.id,
-        amount: additionalPaid,
-        paymentDate: new Date(),
-        method: data.method,
-      },
-    });
-
     return {
       success: true,
-      message: 'Payment added and membership updated successfully',
+      message: 'Membership updated successfully',
       data: updatedMembership,
     };
   }

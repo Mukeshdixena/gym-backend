@@ -13,7 +13,7 @@ import {
 import { MembershipsService } from './memberships.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
-import { PaymentMethod } from '@prisma/client';
+import { MembershipStatus, PaymentMethod } from '@prisma/client';
 
 @Controller('memberships')
 export class MembershipsController {
@@ -63,23 +63,33 @@ export class MembershipsController {
   @Patch('payment/:id')
   async addPayment(
     @Param('id') id: string,
-    @Body() body: { amount: number; discount?: number; method: string },
+    @Body()
+    body: {
+      amount?: number; // optional now
+      discount?: number;
+      method?: string; // optional now
+      status?: string; // optional
+    },
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
 
-    if (!body.amount || body.amount <= 0 || !body.discount) {
+    if (body.amount !== undefined && body.amount <= 0) {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    if (!['CASH', 'CARD', 'UPI', 'ONLINE'].includes(body.method)) {
+    if (
+      body.method &&
+      !['CASH', 'CARD', 'UPI', 'ONLINE'].includes(body.method)
+    ) {
       throw new BadRequestException('Invalid payment method');
     }
 
     return this.membershipsService.addPayment(parsedId, {
       amount: body.amount,
       discount: body.discount,
-      method: body.method as keyof typeof PaymentMethod, // cast to enum type
+      method: body.method as keyof typeof PaymentMethod,
+      status: body.status as keyof typeof MembershipStatus,
     });
   }
 }
