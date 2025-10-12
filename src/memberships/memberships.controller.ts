@@ -74,17 +74,6 @@ export class MembershipsController {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
 
-    if (body.amount !== undefined && body.amount <= 0) {
-      throw new BadRequestException('Amount must be greater than 0');
-    }
-
-    if (
-      body.method &&
-      !['CASH', 'CARD', 'UPI', 'ONLINE'].includes(body.method)
-    ) {
-      throw new BadRequestException('Invalid payment method');
-    }
-
     return this.membershipsService.addPayment(parsedId, {
       amount: body.amount,
       discount: body.discount,
