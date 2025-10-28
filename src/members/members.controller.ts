@@ -11,21 +11,29 @@ import {
   NotFoundException,
   UsePipes,
   ValidationPipe,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { Prisma } from '@prisma/client';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { Request } from 'express';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('members')
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  async create(@Body() data: CreateMemberDto) {
+  async create(
+    @Body() data: CreateMemberDto,
+    @Req() req: Request & { user: any },
+  ) {
     try {
-      const member = await this.membersService.create(data);
+      const member = await this.membersService.create(data, req.user.id);
       return {
         success: true,
         message: 'Member created successfully',
@@ -37,15 +45,15 @@ export class MembersController {
   }
 
   @Get()
-  async findAll() {
-    const members = await this.membersService.findAll();
+  async findAll(@Req() req: Request & { user: any }) {
+    const members = await this.membersService.findAll(req.user.id);
     return { success: true, count: members.length, data: members };
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Req() req: Request & { user: any }) {
     try {
-      const member = await this.membersService.findOne(Number(id));
+      const member = await this.membersService.findOne(Number(id), req.user.id);
       return { success: true, data: member };
     } catch (error) {
       this.handlePrismaError(error);
@@ -54,9 +62,17 @@ export class MembersController {
 
   @Put(':id')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  async update(@Param('id') id: string, @Body() data: UpdateMemberDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() data: UpdateMemberDto,
+    @Req() req: Request & { user: any },
+  ) {
     try {
-      const updated = await this.membersService.update(Number(id), data);
+      const updated = await this.membersService.update(
+        Number(id),
+        req.user.id,
+        data,
+      );
       return {
         success: true,
         message: 'Member updated successfully',
@@ -68,9 +84,9 @@ export class MembersController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Req() req: Request & { user: any }) {
     try {
-      await this.membersService.remove(Number(id));
+      await this.membersService.remove(Number(id), req.user.id);
       return { success: true, message: 'Member deleted successfully' };
     } catch (error) {
       this.handlePrismaError(error);

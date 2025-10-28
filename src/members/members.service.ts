@@ -8,7 +8,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 export class MembersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreateMemberDto): Promise<Member> {
+  async create(data: CreateMemberDto, userId: number): Promise<Member> {
     const cleanData: Prisma.MemberCreateInput = {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
@@ -16,13 +16,15 @@ export class MembersService {
       phone: data.phone.trim(),
       address: data.address?.trim(),
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      user: { connect: { id: userId } }, // ✅ link record to user
     };
 
     return this.prisma.member.create({ data: cleanData });
   }
 
-  async findAll(): Promise<Member[]> {
+  async findAll(userId: number): Promise<Member[]> {
     return this.prisma.member.findMany({
+      where: { userId }, // ✅ filter by user
       orderBy: { createdAt: 'desc' },
       include: {
         memberships: true,
@@ -32,9 +34,9 @@ export class MembersService {
     });
   }
 
-  async findOne(id: number): Promise<Member> {
-    const member = await this.prisma.member.findUnique({
-      where: { id },
+  async findOne(id: number, userId: number): Promise<Member> {
+    const member = await this.prisma.member.findFirst({
+      where: { id, userId }, // ✅ ensure record belongs to user
       include: {
         memberships: true,
         attendances: true,
@@ -42,14 +44,21 @@ export class MembersService {
       },
     });
 
-    if (!member) throw new NotFoundException(`Member with ID ${id} not found`);
+    if (!member)
+      throw new NotFoundException(`Member with ID ${id} not found for user`);
     return member;
   }
 
-  async update(id: number, data: UpdateMemberDto): Promise<Member> {
-    const existing = await this.prisma.member.findUnique({ where: { id } });
+  async update(
+    id: number,
+    userId: number,
+    data: UpdateMemberDto,
+  ): Promise<Member> {
+    const existing = await this.prisma.member.findFirst({
+      where: { id, userId },
+    });
     if (!existing)
-      throw new NotFoundException(`Member with ID ${id} not found`);
+      throw new NotFoundException(`Member with ID ${id} not found for user`);
 
     const cleanData: Prisma.MemberUpdateInput = {
       ...data,
@@ -68,10 +77,12 @@ export class MembersService {
     });
   }
 
-  async remove(id: number): Promise<Member> {
-    const existing = await this.prisma.member.findUnique({ where: { id } });
+  async remove(id: number, userId: number): Promise<Member> {
+    const existing = await this.prisma.member.findFirst({
+      where: { id, userId },
+    });
     if (!existing)
-      throw new NotFoundException(`Member with ID ${id} not found`);
+      throw new NotFoundException(`Member with ID ${id} not found for user`);
 
     return this.prisma.member.delete({ where: { id } });
   }
