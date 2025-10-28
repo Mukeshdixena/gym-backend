@@ -13,8 +13,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  password    String
+  members     Member[]
+  trainers    Trainer[]
+  plans       Plan[]
+  classes     Class[]
+  memberships Membership[]
+  payments    Payment[]
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
 model Member {
   id          Int          @id @default(autoincrement())
+  user        User         @relation(fields: [userId], references: [id])
+  userId      Int
   firstName   String
   lastName    String
   email       String       @unique
@@ -23,9 +43,7 @@ model Member {
   dateOfBirth DateTime?
   memberships Membership[]
   attendances Attendance[]
-
-  // Many-to-many relation with Class
-  classes Class[] @relation("ClassMembers")
+  classes     Class[]      @relation("ClassMembers")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -33,14 +51,14 @@ model Member {
 
 model Class {
   id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
   name      String
   trainer   Trainer  @relation(fields: [trainerId], references: [id])
   trainerId Int
   startTime DateTime
   endTime   DateTime
-
-  // Many-to-many relation with Member
-  members Member[] @relation("ClassMembers")
+  members   Member[] @relation("ClassMembers")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,6 +66,8 @@ model Class {
 
 model Membership {
   id        Int              @id @default(autoincrement())
+  user      User             @relation(fields: [userId], references: [id])
+  userId    Int
   plan      Plan             @relation(fields: [planId], references: [id])
   planId    Int
   member    Member           @relation(fields: [memberId], references: [id])
@@ -63,20 +83,14 @@ model Membership {
   updatedAt DateTime         @updatedAt
 }
 
-enum MembershipStatus {
-  ACTIVE
-  INACTIVE
-  PARTIAL_PAID
-  EXPIRED
-  CANCELLED
-}
-
 model Plan {
   id           Int          @id @default(autoincrement())
-  name         String       @unique
+  user         User         @relation(fields: [userId], references: [id])
+  userId       Int
+  name         String
   description  String?
   price        Float
-  durationDays Int // Number of days the plan is valid
+  durationDays Int
   memberships  Membership[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -84,6 +98,8 @@ model Plan {
 
 model Trainer {
   id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     Int
   firstName  String
   lastName   String
   email      String   @unique
@@ -96,6 +112,8 @@ model Trainer {
 
 model Payment {
   id           Int           @id @default(autoincrement())
+  user         User          @relation(fields: [userId], references: [id])
+  userId       Int
   membership   Membership    @relation(fields: [membershipId], references: [id])
   membershipId Int
   amount       Float
@@ -103,19 +121,29 @@ model Payment {
   method       PaymentMethod
 }
 
+model Attendance {
+  id       Int              @id @default(autoincrement())
+  user     User             @relation(fields: [userId], references: [id])
+  userId   Int
+  member   Member           @relation(fields: [memberId], references: [id])
+  memberId Int
+  date     DateTime
+  status   AttendanceStatus @default(PRESENT)
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  PARTIAL_PAID
+  EXPIRED
+  CANCELLED
+}
+
 enum PaymentMethod {
   CASH
   CARD
   UPI
   ONLINE
-}
-
-model Attendance {
-  id       Int              @id @default(autoincrement())
-  member   Member           @relation(fields: [memberId], references: [id])
-  memberId Int
-  date     DateTime
-  status   AttendanceStatus @default(PRESENT)
 }
 
 enum AttendanceStatus {
