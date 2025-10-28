@@ -11,15 +11,15 @@ import { MembershipStatus, Prisma, PaymentMethod } from '@prisma/client';
 export class MembershipsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreateMembershipDto) {
+  async create(data: CreateMembershipDto, userId: number) {
     try {
-      const member = await this.prisma.member.findUnique({
-        where: { id: data.memberId },
+      const member = await this.prisma.member.findFirst({
+        where: { id: data.memberId, userId },
       });
       if (!member) throw new BadRequestException('Member not found');
 
-      const plan = await this.prisma.plan.findUnique({
-        where: { id: data.planId },
+      const plan = await this.prisma.plan.findFirst({
+        where: { id: data.planId, userId },
       });
       if (!plan) throw new BadRequestException('Plan not found');
 
@@ -32,8 +32,9 @@ export class MembershipsService {
 
       const membership = await this.prisma.membership.create({
         data: {
-          member: { connect: { id: data.memberId } },
-          plan: { connect: { id: data.planId } },
+          userId,
+          memberId: data.memberId,
+          planId: data.planId,
           startDate: new Date(data.startDate),
           endDate: new Date(data.endDate),
           status,
@@ -44,10 +45,10 @@ export class MembershipsService {
         include: { plan: true, member: true },
       });
 
-      // Record initial payment if any
       if (paid > 0) {
         await this.prisma.payment.create({
           data: {
+            userId,
             membershipId: membership.id,
             amount: paid,
             paymentDate: new Date(),
@@ -69,25 +70,25 @@ export class MembershipsService {
     }
   }
 
-  async findAll() {
+  async findAll(userId: number) {
     return this.prisma.membership.findMany({
+      where: { userId },
       include: { plan: true, member: true, payments: true },
     });
   }
 
-  async findOne(id: number) {
-    const membership = await this.prisma.membership.findUnique({
-      where: { id },
+  async findOne(id: number, userId: number) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id, userId },
       include: { plan: true, member: true, payments: true },
     });
     if (!membership) throw new BadRequestException('Membership not found');
     return membership;
   }
 
-  async updateMembership(id: number, data: any) {
-    // Optional: update startDate, endDate, status, planId, etc.
-    const membership = await this.prisma.membership.findUnique({
-      where: { id },
+  async updateMembership(id: number, data: any, userId: number) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id, userId },
     });
     if (!membership) throw new BadRequestException('Membership not found');
 
@@ -100,6 +101,7 @@ export class MembershipsService {
 
   async addPayment(
     id: number,
+    userId: number,
     data: {
       amount?: number;
       discount?: number;
@@ -107,8 +109,8 @@ export class MembershipsService {
       status?: keyof typeof MembershipStatus;
     },
   ) {
-    const membership = await this.prisma.membership.findUnique({
-      where: { id },
+    const membership = await this.prisma.membership.findFirst({
+      where: { id, userId },
       include: { plan: true },
     });
 
@@ -140,6 +142,7 @@ export class MembershipsService {
 
       await this.prisma.payment.create({
         data: {
+          userId,
           membershipId: membership.id,
           amount: additionalPaid,
           paymentDate: new Date(),

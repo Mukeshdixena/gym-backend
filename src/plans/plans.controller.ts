@@ -6,36 +6,56 @@ import {
   Param,
   Delete,
   Put,
+  UseGuards,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { Prisma } from '@prisma/client';
+// import { AuthGuard } from '../auth/auth.guard'; // adjust import path if needed
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('plans')
+@UseGuards(AuthGuard)
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 
   @Post()
-  create(@Body() data: Prisma.PlanCreateInput) {
-    return this.plansService.create(data);
+  async create(@Body() data: Prisma.PlanCreateInput, @Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    return this.plansService.create(data, userId);
   }
 
   @Get()
-  findAll() {
-    return this.plansService.findAll();
+  async findAll(@Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    return this.plansService.findAll(userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.plansService.findOne(Number(id));
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    return this.plansService.findOne(Number(id), userId);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: Prisma.PlanUpdateInput) {
-    return this.plansService.update(Number(id), data);
+  async update(
+    @Param('id') id: string,
+    @Body() data: Prisma.PlanUpdateInput,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    return this.plansService.update(Number(id), data, userId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.plansService.remove(Number(id));
+  async remove(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    return this.plansService.remove(Number(id), userId);
   }
 }
