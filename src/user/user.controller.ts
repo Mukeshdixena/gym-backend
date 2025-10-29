@@ -10,7 +10,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 
 // Define authenticated request
