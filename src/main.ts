@@ -6,7 +6,7 @@ async function bootstrap() {
 
   // Enable CORS for your Vue frontend
   app.enableCors({
-    origin: 'http://localhost:5173', // change this if your frontend uses a different port
+    origin: '*', // change this if your frontend uses a different port
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true, // optional, if you use cookies/auth
   });
