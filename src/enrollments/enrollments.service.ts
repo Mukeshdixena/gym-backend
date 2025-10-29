@@ -6,12 +6,13 @@ import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 export class EnrollmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createEnrollment(dto: CreateEnrollmentDto) {
+  async createEnrollment(dto: CreateEnrollmentDto, userId: number) {
     let memberId: number;
 
     if (!dto.selectedMember) {
       const member = await this.prisma.member.create({
         data: {
+          userId,
           firstName: dto.firstName ?? '',
           lastName: dto.lastName ?? '',
           email: dto.email ?? '',
@@ -27,6 +28,7 @@ export class EnrollmentsService {
 
     const membership = await this.prisma.membership.create({
       data: {
+        userId,
         memberId,
         planId: dto.planId,
         startDate: new Date(dto.startDate),
@@ -38,6 +40,7 @@ export class EnrollmentsService {
     if (dto.paid && dto.paid > 0) {
       await this.prisma.payment.create({
         data: {
+          userId,
           membershipId: membership.id,
           amount: dto.paid,
           method: 'CASH',
@@ -52,19 +55,13 @@ export class EnrollmentsService {
     };
   }
 
-  async getPendingBills() {
-    // Fetch memberships with status ACTIVE
+  async getPendingBills(userId: number) {
     const memberships = await this.prisma.membership.findMany({
-      where: { status: 'ACTIVE' },
-      include: {
-        member: true,
-        plan: true,
-        payments: true,
-      },
+      where: { userId, status: 'ACTIVE' },
+      include: { member: true, plan: true, payments: true },
     });
 
-    // Map to pending bill format
-    const pendingBills = memberships.map((m) => {
+    return memberships.map((m) => {
       const totalPaid = m.payments.reduce((sum, p) => sum + p.amount, 0);
       const pendingAmount = Math.max(m.plan.price - totalPaid, 0);
 
@@ -79,18 +76,12 @@ export class EnrollmentsService {
         endDate: m.endDate,
       };
     });
-
-    return pendingBills;
   }
 
-  async getApprovedBills() {
-    // Fetch memberships where payments cover the plan amount
+  async getApprovedBills(userId: number) {
     const memberships = await this.prisma.membership.findMany({
-      include: {
-        member: true,
-        plan: true,
-        payments: true,
-      },
+      where: { userId },
+      include: { member: true, plan: true, payments: true },
     });
 
     return memberships
@@ -106,54 +97,48 @@ export class EnrollmentsService {
           plan: m.plan.name,
           amount: m.plan.price,
           paid: totalPaid,
-          pending: Math.max(m.plan.price - totalPaid, 0),
-          date: m.updatedAt.toLocaleDateString(), // last update date
+          pending: 0,
+          date: m.updatedAt.toLocaleDateString(),
         };
       });
   }
 
-  async approveBill(membershipId: number | string) {
-    const id =
-      typeof membershipId === 'string'
-        ? parseInt(membershipId, 10)
-        : membershipId;
-
+  async approveBill(membershipId: number, userId: number) {
     const membership = await this.prisma.membership.findUnique({
-      where: { id },
+      where: { id: membershipId },
       include: { plan: true, payments: true },
     });
 
-    if (!membership) throw new Error('Membership not found');
+    if (!membership || membership.userId !== userId) {
+      throw new Error('Membership not found or unauthorized');
+    }
 
     const totalPaid = membership.payments.reduce((sum, p) => sum + p.amount, 0);
-
     if (totalPaid < membership.plan.price) {
       throw new Error('Cannot approve: pending amount exists');
     }
 
-    // Update status
     await this.prisma.membership.update({
-      where: { id },
+      where: { id: membershipId },
       data: { status: 'ACTIVE' },
     });
 
     return { message: 'Bill approved successfully' };
   }
 
-  async rejectBill(membershipId: number | string) {
-    // Option 1: mark membership as INACTIVE or CANCELLED
-    const id =
-      typeof membershipId === 'string'
-        ? parseInt(membershipId, 10)
-        : membershipId;
-    await this.prisma.membership.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
+  async rejectBill(membershipId: number, userId: number) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id: membershipId },
     });
 
-    // Option 2: remove membership & payments if you want hard delete
-    // await this.prisma.payment.deleteMany({ where: { membershipId } });
-    // await this.prisma.membership.delete({ where: { id: membershipId } });
+    if (!membership || membership.userId !== userId) {
+      throw new Error('Membership not found or unauthorized');
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { status: 'CANCELLED' },
+    });
 
     return { message: 'Bill rejected successfully' };
   }

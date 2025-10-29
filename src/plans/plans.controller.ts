@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { Prisma } from '@prisma/client';
-// import { AuthGuard } from '../auth/auth.guard'; // adjust import path if needed
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../auth/auth.guard'; // adjust import path if needed
+// import { AuthGuard } from '@nestjs/passport';
 
 @Controller('plans')
-@UseGuards(AuthGuard)
+@UseGuards(JwtAuthGuard)
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 

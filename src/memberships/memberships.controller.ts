@@ -17,21 +17,25 @@ import { MembershipsService } from './memberships.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { MembershipStatus, PaymentMethod } from '@prisma/client';
-import { AuthGuard } from '@nestjs/passport';
-import type { Response, Request } from 'express';
+import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import type { Response } from 'express';
 import PDFDocument from 'pdfkit';
 
-@UseGuards(AuthGuard('jwt'))
+// Define authenticated request
+interface AuthRequest extends Request {
+  user: {
+    id: number;
+  };
+}
+
+@UseGuards(JwtAuthGuard) // ← Clean, reusable, typed
 @Controller('memberships')
 export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}
 
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  async create(
-    @Body() dto: CreateMembershipDto,
-    @Req() req: Request & { user: any },
-  ) {
+  async create(@Body() dto: CreateMembershipDto, @Req() req: AuthRequest) {
     try {
       return await this.membershipsService.create(dto, req.user.id);
     } catch (error) {
@@ -43,12 +47,12 @@ export class MembershipsController {
   }
 
   @Get()
-  async findAll(@Req() req: Request & { user: any }) {
+  async findAll(@Req() req: AuthRequest) {
     return this.membershipsService.findAll(req.user.id);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string, @Req() req: Request & { user: any }) {
+  async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
     return this.membershipsService.findOne(parsedId, req.user.id);
@@ -58,7 +62,7 @@ export class MembershipsController {
   async downloadBill(
     @Param('id') id: string,
     @Res() res: Response,
-    @Req() req: Request & { user: any },
+    @Req() req: AuthRequest,
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid membership ID');
@@ -126,6 +130,7 @@ export class MembershipsController {
     const rowHeight = 25;
     const tableTop = doc.y;
 
+    // Table Header
     doc
       .rect(
         startX,
@@ -143,6 +148,7 @@ export class MembershipsController {
       x += columnWidths[i];
     });
 
+    // Table Rows
     let y = tableTop + rowHeight;
     doc.font('Helvetica').fontSize(12);
     membership.payments.forEach((p, i) => {
@@ -197,7 +203,7 @@ export class MembershipsController {
   async updateMembership(
     @Param('id') id: string,
     @Body() dto: UpdateMembershipDto,
-    @Req() req: Request & { user: any },
+    @Req() req: AuthRequest,
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
@@ -224,7 +230,7 @@ export class MembershipsController {
       method?: string;
       status?: string;
     },
-    @Req() req: Request & { user: any },
+    @Req() req: AuthRequest,
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid ID');
