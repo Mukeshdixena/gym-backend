@@ -86,4 +86,24 @@ export class MembersService {
 
     return this.prisma.member.delete({ where: { id } });
   }
+
+  async getRecentMembers(userId: number) {
+    return this.prisma.member
+      .findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          memberships: {
+            include: { plan: true },
+          },
+        },
+      })
+      .then((members) =>
+        members.map((m) => ({
+          ...m,
+          planName: m.memberships[0]?.plan?.name || null,
+        })),
+      );
+  }
 }

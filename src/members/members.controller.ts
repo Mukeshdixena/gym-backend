@@ -112,4 +112,8 @@ export class MembersController {
       'Something went wrong. Please try again later.',
     );
   }
+  @Get('recent')
+  async getRecent(@Req() req: AuthRequest) {
+    return this.membersService.getRecentMembers(req.user.id);
+  }
 }
