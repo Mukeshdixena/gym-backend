@@ -8,31 +8,20 @@
     "allowSyntheticDefaultImports": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "isolatedModules": true,
-    "declaration": true,
+    "isolatedModules": false,
+    "declaration": false,
     "removeComments": true,
     "incremental": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
+    "allowJs": false,
     "resolveJsonModule": true,
-    "target": "ES2022",
+    "target": "ES2020",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
-    // "ignoreDeprecations": "6.0" 
+    "baseUrl": "./"
   },
-  "include": [
-    "src",
-    ".eslintrc.cjs",
-    "**/*.config.ts",
-    "**/*.config.js",
-    "**/*.config.cjs"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "coverage"
-  ]
+  "ignoreDeprecations": "6.0",
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test", "coverage"]
 }

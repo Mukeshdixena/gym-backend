@@ -2,10 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "module": "NodeNext",
-    "target": "ES2022",
-    "declaration": true,
-    "sourceMap": true
+    "removeComments": true,
+    "declaration": false
   },
-  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+  "include": ["src/**/*.ts"]
 }

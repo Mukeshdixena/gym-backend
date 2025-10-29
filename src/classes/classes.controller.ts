@@ -12,33 +12,34 @@ import {
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { Prisma } from '@prisma/client';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../auth/auth.guard'; // ← Import your guard
 import { Request } from 'express';
 
-@UseGuards(AuthGuard('jwt'))
+interface AuthRequest extends Request {
+  user?: { id: number }; // ← Define your user shape
+}
+
+@UseGuards(JwtAuthGuard) // ← Clean & reusable
 @Controller('classes')
 export class ClassesController {
   constructor(private readonly classesService: ClassesService) {}
 
   @Post()
-  create(
-    @Body() data: Prisma.ClassCreateInput,
-    @Req() req: Request & { user?: any },
-  ) {
+  create(@Body() data: Prisma.ClassCreateInput, @Req() req: AuthRequest) {
     const userId = req.user?.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.classesService.create(data, userId);
   }
 
   @Get()
-  findAll(@Req() req: Request & { user?: any }) {
+  findAll(@Req() req: AuthRequest) {
     const userId = req.user?.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.classesService.findAll(userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() req: Request & { user?: any }) {
+  findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     const userId = req.user?.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.classesService.findOne(Number(id), userId);
@@ -48,7 +49,7 @@ export class ClassesController {
   update(
     @Param('id') id: string,
     @Body() data: Prisma.ClassUpdateInput,
-    @Req() req: Request & { user?: any },
+    @Req() req: AuthRequest,
   ) {
     const userId = req.user?.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
@@ -56,7 +57,7 @@ export class ClassesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: Request & { user?: any }) {
+  remove(@Param('id') id: string, @Req() req: AuthRequest) {
     const userId = req.user?.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.classesService.remove(Number(id), userId);

@@ -11,6 +11,17 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, MembersModule, PlansModule, TrainersModule, ClassesModule, MembershipsModule, AttendanceModule, EnrollmentsModule, UserModule, AuthModule],
+  imports: [
+    PrismaModule,
+    MembersModule,
+    PlansModule,
+    TrainersModule,
+    ClassesModule,
+    MembershipsModule,
+    AttendanceModule,
+    EnrollmentsModule,
+    UserModule,
+    AuthModule,
+  ],
 })
 export class AppModule {}

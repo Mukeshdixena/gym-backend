@@ -9,14 +9,25 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { Request } from 'express';
 import { UserService } from './user.service';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import { Request } from 'express';
+
+// Define authenticated request
+interface AuthRequest extends Request {
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    // add other fields from your JWT payload
+  };
+}
 
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  // Public routes (no guard)
   @Post()
   create(@Body() body: { name: string; email: string; password: string }) {
     return this.userService.create(body);
@@ -49,9 +60,11 @@ export class UserController {
   login(@Body() body: { email: string; password: string }) {
     return this.userService.login(body.email, body.password);
   }
-  @UseGuards(AuthGuard('jwt'))
+
+  // Protected route
+  @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@Req() req: Request & { user?: any }) {
-    return req.user; // User object from JWT
+  getProfile(@Req() req: AuthRequest) {
+    return req.user; // Fully typed user from JWT
   }
 }

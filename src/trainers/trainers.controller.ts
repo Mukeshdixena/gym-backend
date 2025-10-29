@@ -12,34 +12,38 @@ import {
 } from '@nestjs/common';
 import { TrainersService } from './trainers.service';
 import { Prisma } from '@prisma/client';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
 import { Request } from 'express';
 
-@UseGuards(AuthGuard('jwt'))
+// Define authenticated request
+interface AuthRequest extends Request {
+  user: {
+    id: number;
+  };
+}
+
+@UseGuards(JwtAuthGuard) // ← Clean, reusable, typed
 @Controller('trainers')
 export class TrainersController {
   constructor(private readonly trainersService: TrainersService) {}
 
   @Post()
-  create(
-    @Body() data: Prisma.TrainerCreateInput,
-    @Req() req: Request & { user?: any },
-  ) {
-    const userId = req.user?.id;
+  create(@Body() data: Prisma.TrainerCreateInput, @Req() req: AuthRequest) {
+    const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.create(data, userId);
   }
 
   @Get()
-  findAll(@Req() req: Request & { user?: any }) {
-    const userId = req.user?.id;
+  findAll(@Req() req: AuthRequest) {
+    const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.findAll(userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() req: Request & { user?: any }) {
-    const userId = req.user?.id;
+  findOne(@Param('id') id: string, @Req() req: AuthRequest) {
+    const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.findOne(Number(id), userId);
   }
@@ -48,16 +52,16 @@ export class TrainersController {
   update(
     @Param('id') id: string,
     @Body() data: Prisma.TrainerUpdateInput,
-    @Req() req: Request & { user?: any },
+    @Req() req: AuthRequest,
   ) {
-    const userId = req.user?.id;
+    const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.update(Number(id), data, userId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req: Request & { user?: any }) {
-    const userId = req.user?.id;
+  remove(@Param('id') id: string, @Req() req: AuthRequest) {
+    const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.remove(Number(id), userId);
   }
