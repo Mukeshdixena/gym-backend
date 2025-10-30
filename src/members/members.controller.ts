@@ -44,6 +44,12 @@ export class MembersController {
         data: member,
       };
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
       throw this.handlePrismaError(error);
     }
   }
@@ -54,12 +60,25 @@ export class MembersController {
     return { success: true, count: members.length, data: members };
   }
 
+  // ⚡️Keep static route above dynamic routes
+  @Get('recent')
+  async getRecent(@Req() req: AuthRequest) {
+    const recent = await this.membersService.getRecentMembers(req.user.id);
+    return { success: true, data: recent };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     try {
       const member = await this.membersService.findOne(Number(id), req.user.id);
       return { success: true, data: member };
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
       throw this.handlePrismaError(error);
     }
   }
@@ -83,6 +102,12 @@ export class MembersController {
         data: updated,
       };
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
       throw this.handlePrismaError(error);
     }
   }
@@ -93,23 +118,19 @@ export class MembersController {
       await this.membersService.remove(Number(id), req.user.id);
       return { success: true, message: 'Member deleted successfully' };
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
       throw this.handlePrismaError(error);
     }
   }
 
-  @Get('recent')
-  async getRecent(@Req() req: AuthRequest) {
-    const recent = await this.membersService.getRecentMembers(req.user.id);
-    return { success: true, data: recent };
-  }
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Centralized Prisma error handler with field-specific messages
-  // ──────────────────────────────────────────────────────────────────────
   private handlePrismaError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        // Unique constraint violation
         const target = (error.meta as { target?: string[] })?.target || [];
         if (Array.isArray(target)) {
           if (target.includes('email')) {
@@ -131,7 +152,7 @@ export class MembersController {
       }
     }
 
-    // Log error in production (optional)
+    // Only log truly unexpected errors
     console.error('Unexpected error in MembersController:', error);
 
     throw new InternalServerErrorException(
