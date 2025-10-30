@@ -18,7 +18,7 @@ import { MembersService } from './members.service';
 import { Prisma } from '@prisma/client';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 
 // Define authenticated request type
@@ -28,7 +28,7 @@ interface AuthRequest extends Request {
   };
 }
 
-@UseGuards(JwtAuthGuard) // ← Clean, reusable, typed
+@UseGuards(JwtAuthGuard)
 @Controller('members')
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
@@ -44,7 +44,7 @@ export class MembersController {
         data: member,
       };
     } catch (error) {
-      throw this.handlePrismaError(error); // ← throw, don't return
+      throw this.handlePrismaError(error);
     }
   }
 
@@ -97,23 +97,45 @@ export class MembersController {
     }
   }
 
-  // Return type `never` because it always throws
+  @Get('recent')
+  async getRecent(@Req() req: AuthRequest) {
+    const recent = await this.membersService.getRecentMembers(req.user.id);
+    return { success: true, data: recent };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Centralized Prisma error handler with field-specific messages
+  // ──────────────────────────────────────────────────────────────────────
   private handlePrismaError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        throw new BadRequestException('Email already exists.');
+        // Unique constraint violation
+        const target = (error.meta as { target?: string[] })?.target || [];
+        if (Array.isArray(target)) {
+          if (target.includes('email')) {
+            throw new BadRequestException(
+              'A member with this email already exists.',
+            );
+          }
+          if (target.includes('phone')) {
+            throw new BadRequestException(
+              'A member with this phone number already exists.',
+            );
+          }
+        }
+        throw new BadRequestException('This value is already taken.');
       }
+
       if (error.code === 'P2025') {
-        throw new NotFoundException('Record not found.');
+        throw new NotFoundException('Member not found.');
       }
     }
 
+    // Log error in production (optional)
+    console.error('Unexpected error in MembersController:', error);
+
     throw new InternalServerErrorException(
-      'Something went wrong. Please try again later.',
+      'An unexpected error occurred. Please try again later.',
     );
-  }
-  @Get('recent')
-  async getRecent(@Req() req: AuthRequest) {
-    return this.membersService.getRecentMembers(req.user.id);
   }
 }
