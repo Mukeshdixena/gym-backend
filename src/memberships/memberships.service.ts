@@ -23,6 +23,43 @@ export class MembershipsService {
       });
       if (!plan) throw new BadRequestException('Plan not found');
 
+      // Normalize dates (ignore timezones)
+      const startDate = new Date(data.startDate);
+      const endDate = new Date(data.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      // ✅ Check 1: End date must be after start date
+      if (startDate >= endDate) {
+        throw new BadRequestException('End date must be after start date');
+      }
+
+      // ✅ Check 2: End date must not be in the past
+      if (endDate < today) {
+        throw new BadRequestException('End date cannot be in the past');
+      }
+
+      // ✅ Check 3: Prevent overlapping memberships for same member
+      const overlappingMembership = await this.prisma.membership.findFirst({
+        where: {
+          memberId: data.memberId,
+          userId,
+          AND: [
+            { startDate: { lte: endDate } },
+            { endDate: { gte: startDate } },
+          ],
+        },
+      });
+
+      if (overlappingMembership) {
+        throw new BadRequestException(
+          'Membership dates overlap with an existing membership for this member',
+        );
+      }
+
       const paid = data.paid ?? 0;
       const discount = data.discount ?? 0;
       const pending = plan.price - (paid + discount);
@@ -35,8 +72,8 @@ export class MembershipsService {
           userId,
           memberId: data.memberId,
           planId: data.planId,
-          startDate: new Date(data.startDate),
-          endDate: new Date(data.endDate),
+          startDate,
+          endDate,
           status,
           paid,
           discount,
@@ -52,7 +89,10 @@ export class MembershipsService {
             membershipId: membership.id,
             amount: paid,
             paymentDate: new Date(),
-            method: data.method ?? PaymentMethod.CASH,
+            method:
+              data.method && Object.values(PaymentMethod).includes(data.method)
+                ? data.method
+                : PaymentMethod.CASH,
           },
         });
       }
@@ -63,9 +103,15 @@ export class MembershipsService {
         data: membership,
       };
     } catch (error) {
+      console.error('Membership creation error:', error);
+
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         throw new BadRequestException('Database constraint error');
       }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('Failed to create membership');
     }
   }
@@ -179,7 +225,6 @@ export class MembershipsService {
 
     if (!membership) throw new BadRequestException('Membership not found');
 
-    // Optional: Delete related payments first (to maintain referential integrity)
     await this.prisma.payment.deleteMany({
       where: { membershipId: id, userId },
     });
