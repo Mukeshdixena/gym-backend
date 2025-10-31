@@ -44,12 +44,11 @@ model Member {
   attendances Attendance[]
   classes     Class[]      @relation("ClassMembers")
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([email, userId])
   @@unique([phone, userId])
-
   @@index([userId])
 }
 
@@ -95,6 +94,7 @@ model Plan {
   description  String?
   price        Float
   durationDays Int
+  isActive     Boolean      @default(true)
   memberships  Membership[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt

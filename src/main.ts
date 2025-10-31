@@ -1,21 +1,52 @@
+// src/main.ts
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config'; // ← Import the class
 import { AppModule } from './app.module';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for your Vue frontend
+  // Correct: Use the class, not a string
+  const configService = app.get(ConfigService);
+
+  // CORS
   app.enableCors({
-    origin: '*', // change this if your frontend uses a different port
+    origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true, // optional, if you use cookies/auth
+    credentials: true,
   });
-  const port = process.env.PORT || 3000;
+
+  // Global Validation Pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Swagger
+  const config = new DocumentBuilder()
+    .setTitle('Gym Management API')
+    .setDescription('Plans, Members, Trainers, etc.')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
+  // Port from .env or default
+  const port = configService.get<number>('PORT') ?? 3000;
+
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`Application running on http://localhost:${port}`);
+  console.log(`Swagger UI: http://localhost:${port}/api`);
 }
 
 bootstrap().catch((err) => {
-  console.error('Error starting the app', err);
+  console.error('Failed to start app:', err);
   process.exit(1);
 });
