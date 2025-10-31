@@ -12,6 +12,7 @@ import {
   Res,
   UseGuards,
   Req,
+  Delete,
 } from '@nestjs/common';
 import { MembershipsService } from './memberships.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
@@ -241,5 +242,20 @@ export class MembershipsController {
       method: body.method as keyof typeof PaymentMethod,
       status: body.status as keyof typeof MembershipStatus,
     });
+  }
+  @Delete(':id')
+  async deleteMembership(@Param('id') id: string, @Req() req: AuthRequest) {
+    const parsedId = Number(id);
+    if (isNaN(parsedId)) throw new BadRequestException('Invalid membership ID');
+
+    try {
+      return await this.membershipsService.deleteMembership(
+        parsedId,
+        req.user.id,
+      );
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Failed to delete membership');
+    }
   }
 }
