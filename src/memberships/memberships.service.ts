@@ -172,4 +172,25 @@ export class MembershipsService {
       data: updatedMembership,
     };
   }
+  async deleteMembership(id: number, userId: number) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id, userId },
+    });
+
+    if (!membership) throw new BadRequestException('Membership not found');
+
+    // Optional: Delete related payments first (to maintain referential integrity)
+    await this.prisma.payment.deleteMany({
+      where: { membershipId: id, userId },
+    });
+
+    await this.prisma.membership.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      message: 'Membership deleted successfully',
+    };
+  }
 }
