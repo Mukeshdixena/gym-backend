@@ -1,25 +1,86 @@
-import { Controller, Get, Patch, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminUsersService } from './admin-users.service';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('admin-users')
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(JwtAuthGuard, AdminGuard) // ✅ protect all routes for admins only
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersService) {}
 
-  @Get('pending')
-  listPending() {
-    return this.adminUsersService.listPending();
+  // ✅ Get all users (admin-only)
+  @Get()
+  getAllUsers() {
+    return this.adminUsersService.getAllUsers();
   }
 
+  // ✅ Get single user
+  @Get(':id')
+  getUserById(@Param('id') id: string) {
+    return this.adminUsersService.getUserById(+id);
+  }
+
+  // ✅ Create new user (admin can manually add)
+  @Post()
+  createUser(
+    @Body()
+    data: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      status?: string;
+    },
+  ) {
+    return this.adminUsersService.createUser(data);
+  }
+
+  // ✅ Update user
+  @Patch(':id')
+  updateUser(
+    @Param('id') id: string,
+    @Body()
+    data: {
+      name?: string;
+      email?: string;
+      role?: string;
+      status?: string;
+      password?: string;
+    },
+  ) {
+    return this.adminUsersService.updateUser(+id, data);
+  }
+
+  // ✅ Delete user
+  @Delete(':id')
+  deleteUser(@Param('id') id: string) {
+    return this.adminUsersService.deleteUser(+id);
+  }
+
+  // ✅ Get only pending users
+  @Get('pending/all')
+  getPendingUsers() {
+    return this.adminUsersService.findPendingUsers();
+  }
+
+  // ✅ Approve user
   @Patch('approve/:id')
-  approve(@Param('id') id: string) {
-    return this.adminUsersService.approve(+id);
+  approveUser(@Param('id') id: string) {
+    return this.adminUsersService.approveUser(+id);
   }
 
+  // ✅ Reject user
   @Patch('reject/:id')
-  reject(@Param('id') id: string) {
-    return this.adminUsersService.reject(+id);
+  rejectUser(@Param('id') id: string) {
+    return this.adminUsersService.rejectUser(+id);
   }
 }
