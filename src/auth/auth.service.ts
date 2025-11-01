@@ -34,15 +34,15 @@ export class AuthService {
         role: UserRole.ADMIN,
         status: UserStatus.APPROVED,
       });
+    } else {
+      const result = await this.userService.create({
+        name: data.name,
+        email: data.email,
+        password: hashed,
+        role: UserRole.USER,
+        status: UserStatus.PENDING,
+      });
     }
-
-    const result = await this.userService.create({
-      name: data.name,
-      email: data.email,
-      password: hashed,
-      role: UserRole.USER,
-      status: UserStatus.PENDING,
-    });
 
     // ✅ get full result and extract user
 
