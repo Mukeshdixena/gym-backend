@@ -6,6 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import * as bcrypt from 'bcrypt';
+import { UserRole, UserStatus } from '@prisma/client'; // ✅ import Prisma enums
 
 @Injectable()
 export class AuthService {
@@ -25,16 +26,16 @@ export class AuthService {
 
     const hashed = await bcrypt.hash(data.password, 10);
 
-    // Create user with status PENDING
-    const created = await this.userService.create({
+    // ✅ get full result and extract user
+    const result = await this.userService.create({
       name: data.name,
       email: data.email,
       password: hashed,
-      // 🟢 Only if your UserService.create accepts 'status' argument
-      // otherwise handle it in service itself (see below)
+      role: UserRole.USER,
+      status: UserStatus.PENDING,
     });
 
-    const user = created.user; // since create() returns { message, user }
+    const user = result.user; // ✅ fix type error
 
     return {
       message: 'User registered successfully. Awaiting admin approval.',
@@ -43,12 +44,13 @@ export class AuthService {
         name: user.name,
         email: user.email,
         status: user.status,
+        role: user.role,
       },
     };
   }
 
   // ---------------------------------------
-  // Login — only for APPROVED users
+  // Login — only APPROVED users can log in
   // ---------------------------------------
   async login(email: string, password: string) {
     const user = await this.userService.findByEmail(email);
@@ -57,11 +59,16 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) throw new UnauthorizedException('Invalid credentials');
 
-    if (user.status !== 'APPROVED') {
-      throw new UnauthorizedException('Account not approved by admin yet');
+    if (user.status !== UserStatus.APPROVED) {
+      throw new UnauthorizedException(
+        user.status === UserStatus.PENDING
+          ? 'Account not approved by admin yet'
+          : 'Account rejected by admin',
+      );
     }
 
-    const token = this.jwtService.sign({ userId: user.id });
+    const token = this.jwtService.sign({ userId: user.id, role: user.role });
+
     return {
       message: 'Login successful',
       token,
@@ -69,6 +76,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        status: user.status,
       },
     };
   }
