@@ -22,7 +22,7 @@ export class MembersService {
         userId,
         OR: [{ email }, { phone }],
       },
-      select: { id: true, email: true, phone: true }, // Minimal data
+      select: { id: true, email: true, phone: true },
     });
 
     if (existingMember) {
@@ -158,6 +158,7 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found.`);
     }
 
+    // Attempt delete - will throw Prisma P2003 if FK constraint exists
     return this.prisma.member.delete({
       where: { id },
     });

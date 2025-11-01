@@ -130,6 +130,7 @@ export class MembersController {
 
   private handlePrismaError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Unique constraint violation
       if (error.code === 'P2002') {
         const target = (error.meta as { target?: string[] })?.target || [];
         if (Array.isArray(target)) {
@@ -147,14 +148,21 @@ export class MembersController {
         throw new BadRequestException('This value is already taken.');
       }
 
+      // Record not found
       if (error.code === 'P2025') {
         throw new NotFoundException('Member not found.');
       }
+
+      // Foreign key constraint violation
+      if (error.code === 'P2003') {
+        throw new BadRequestException(
+          'Cannot delete member because it is associated with one or more memberships.',
+        );
+      }
     }
 
-    // Only log truly unexpected errors
+    // Log truly unexpected errors
     console.error('Unexpected error in MembersController:', error);
-
     throw new InternalServerErrorException(
       'An unexpected error occurred. Please try again later.',
     );
