@@ -11,6 +11,7 @@ import {
   UseGuards,
   Req,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
@@ -37,13 +38,30 @@ export class PlansController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all plans for the authenticated user' })
-  async findAll(@Req() req: any) {
+  @ApiOperation({
+    summary: 'Get all plans for the authenticated user (with filters)',
+  })
+  async findAll(
+    @Req() req: any,
+    @Query('isActive') isActive?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('order') order?: 'asc' | 'desc',
+  ) {
     const userId = req.user?.id;
     if (!userId) throw new BadRequestException('User not authenticated');
-    return this.plansService.findAll(userId);
-  }
 
+    return this.plansService.findAll(userId, {
+      isActive,
+      minPrice,
+      maxPrice,
+      search,
+      sortBy,
+      order,
+    });
+  }
   @Get(':id')
   @ApiOperation({ summary: 'Get a single plan by ID' })
   async findOne(@Param('id') id: string, @Req() req: any) {
