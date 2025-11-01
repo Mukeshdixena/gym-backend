@@ -24,11 +24,13 @@ model User {
   classes     Class[]
   memberships Membership[]
   payments    Payment[]
+  role        UserRole     @default(USER)
   attendances Attendance[]
   status      String       @default("PENDING")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
+
 model Member {
   id          Int          @id @default(autoincrement())
   user        User         @relation(fields: [userId], references: [id])
@@ -153,4 +155,9 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LEAVE
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }

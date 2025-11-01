@@ -17,7 +17,7 @@ export class AdminUsersService {
       where: { id },
       data: { status: 'APPROVED' },
     });
-    return { message: `${user.name} has been approved.`, user };
+    return { message: `${user.name} has been approved.` };
   }
 
   async reject(id: number) {
@@ -25,12 +25,6 @@ export class AdminUsersService {
       where: { id },
       data: { status: 'REJECTED' },
     });
-    return { message: `${user.name} has been rejected.`, user };
-  }
-
-  async findOne(id: number) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+    return { message: `${user.name} has been rejected.` };
   }
 }
