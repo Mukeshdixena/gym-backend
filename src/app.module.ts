@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config'; // <-- NEW
+import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { MembersModule } from './members/members.module';
 import { PlansModule } from './plans/plans.module';
@@ -11,24 +11,21 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PaymentsModule } from './payments/payments.module';
+import { AdminUsersModule } from './admin-users/admin-users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
-    // ---------------------------------------------------------------
-    // 1. ConfigModule – MUST be first (loads .env and makes ConfigService global)
-    // ---------------------------------------------------------------
+    // 1. Global Config
     ConfigModule.forRoot({
-      isGlobal: true, // <-- makes ConfigService injectable in main.ts, controllers, services, etc.
-      envFilePath: '.env', // optional – remove if you don’t use .env
-      expandVariables: true, // allows ${VAR} syntax in .env
+      isGlobal: true,
+      envFilePath: '.env',
+      expandVariables: true,
     }),
 
-    // ---------------------------------------------------------------
-    // 2. Your existing feature modules
-    // ---------------------------------------------------------------
+    // 2. Feature Modules
     PrismaModule,
     MembersModule,
     PlansModule,
@@ -41,6 +38,7 @@ import { PaymentsModule } from './payments/payments.module';
     AuthModule,
     DashboardModule,
     PaymentsModule,
+    AdminUsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
