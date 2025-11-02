@@ -7,11 +7,13 @@ import {
   Param,
   Body,
   UseGuards,
+  Req,
+  BadRequestException, // ✅ added
 } from '@nestjs/common';
 import { AdminUsersService } from './admin-users.service';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
-
+import { Request } from 'express';
 @Controller('admin-users')
 @UseGuards(JwtAuthGuard, AdminGuard) // ✅ protect all routes for admins only
 export class AdminUsersController {
@@ -82,5 +84,17 @@ export class AdminUsersController {
   @Patch('reject/:id')
   rejectUser(@Param('id') id: string) {
     return this.adminUsersService.rejectUser(+id);
+  }
+
+  @Post('impersonate/:id')
+  async impersonateUser(@Req() req: Request, @Param('id') id: string) {
+    const userPayload = req.user as any;
+    const adminId = userPayload.userId || userPayload.id || userPayload.sub;
+
+    if (!adminId) {
+      throw new BadRequestException('Invalid admin token: no user ID found');
+    }
+
+    return this.adminUsersService.impersonateUser(adminId, +id);
   }
 }

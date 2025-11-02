@@ -2,14 +2,19 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
 import { UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private authService: AuthService,
+  ) {}
 
   // ✅ Get all users
   async getAllUsers() {
@@ -45,7 +50,7 @@ export class AdminUsersService {
     return user;
   }
 
-  // ✅ Create user (admin manually adds user)
+  // ✅ Create user
   async createUser(data: {
     name: string;
     email: string;
@@ -142,5 +147,38 @@ export class AdminUsersService {
       where: { id },
       data: { status: UserStatus.REJECTED },
     });
+  }
+
+  // ✅ "Login as User" feature — Admin impersonates another user
+  async impersonateUser(adminId: number, userId: number) {
+    const admin = await this.prisma.user.findUnique({ where: { id: adminId } });
+    if (!admin || admin.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can perform this action');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status !== UserStatus.APPROVED) {
+      throw new BadRequestException('User account is not approved');
+    }
+
+    // ✅ Generate token using your working AuthService
+    const token = this.authService['jwtService'].sign({
+      userId: user.id,
+      role: user.role,
+      impersonatedBy: admin.id,
+    });
+
+    return {
+      message: `Admin ${admin.name} is now logged in as ${user.name}`,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+    };
   }
 }
