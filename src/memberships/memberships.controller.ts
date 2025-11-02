@@ -1,3 +1,4 @@
+// src/memberships/memberships.controller.ts
 import {
   Body,
   Controller,
@@ -17,19 +18,19 @@ import {
 import { MembershipsService } from './memberships.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
+import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { MembershipStatus, PaymentMethod } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import { JwtAuthGuard } from '../auth/auth.guard';
 import type { Response } from 'express';
 import PDFDocument from 'pdfkit';
 
-// Define authenticated request
 interface AuthRequest extends Request {
   user: {
     id: number;
   };
 }
 
-@UseGuards(JwtAuthGuard) // ← Clean, reusable, typed
+@UseGuards(JwtAuthGuard)
 @Controller('memberships')
 export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}
@@ -80,7 +81,6 @@ export class MembershipsController {
       'Content-Disposition',
       `attachment; filename=bill_${membership.id}.pdf`,
     );
-
     doc.pipe(res);
 
     // Header
@@ -103,7 +103,7 @@ export class MembershipsController {
       )
       .text(`Email: ${membership.member.email}`)
       .text(`Phone: ${membership.member.phone}`)
-      .text(`Address: ${membership.member.address}`)
+      .text(`Address: ${membership.member.address || 'N/A'}`)
       .moveDown(1);
 
     // Plan Info
@@ -115,7 +115,7 @@ export class MembershipsController {
       .font('Helvetica')
       .fontSize(12)
       .text(`Plan Name: ${membership.plan.name}`)
-      .text(`Description: ${membership.plan.description}`)
+      .text(`Description: ${membership.plan.description || 'N/A'}`)
       .text(`Price: ₹${membership.plan.price}`)
       .text(`Duration: ${membership.plan.durationDays} days`)
       .text(
@@ -131,7 +131,6 @@ export class MembershipsController {
     const rowHeight = 25;
     const tableTop = doc.y;
 
-    // Table Header
     doc
       .rect(
         startX,
@@ -141,7 +140,6 @@ export class MembershipsController {
       )
       .fill('#f2f2f2')
       .stroke();
-
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(12);
     let x = startX;
     headers.forEach((header, i) => {
@@ -149,10 +147,15 @@ export class MembershipsController {
       x += columnWidths[i];
     });
 
-    // Table Rows
     let y = tableTop + rowHeight;
     doc.font('Helvetica').fontSize(12);
     membership.payments.forEach((p, i) => {
+      const isRefund = p.amount < 0;
+      const displayAmount = isRefund
+        ? `(Refund) ₹${Math.abs(p.amount)}`
+        : `₹${p.amount}`;
+      const displayMethod = isRefund ? `${p.method} (Refund)` : p.method;
+
       doc
         .rect(
           startX,
@@ -164,14 +167,16 @@ export class MembershipsController {
 
       const rowData = [
         i + 1,
-        `₹${p.amount}`,
+        displayAmount,
         new Date(p.paymentDate).toLocaleDateString(),
-        p.method,
+        displayMethod,
       ];
 
       let colX = startX;
       rowData.forEach((data, j) => {
-        doc.text(String(data), colX + 5, y + 8, { width: columnWidths[j] });
+        doc
+          .fillColor(isRefund ? 'red' : 'black')
+          .text(String(data), colX + 5, y + 8, { width: columnWidths[j] });
         colX += columnWidths[j];
       });
       y += rowHeight;
@@ -201,6 +206,7 @@ export class MembershipsController {
   }
 
   @Patch(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async updateMembership(
     @Param('id') id: string,
     @Body() dto: UpdateMembershipDto,
@@ -218,6 +224,28 @@ export class MembershipsController {
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('Failed to update membership');
+    }
+  }
+
+  @Post(':id/refund')
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  async refundPayment(
+    @Param('id') id: string,
+    @Body() dto: RefundPaymentDto,
+    @Req() req: AuthRequest,
+  ) {
+    const parsedId = Number(id);
+    if (isNaN(parsedId)) throw new BadRequestException('Invalid membership ID');
+
+    try {
+      return await this.membershipsService.refundPayment(
+        parsedId,
+        req.user.id,
+        dto,
+      );
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Failed to process refund');
     }
   }
 
@@ -243,6 +271,7 @@ export class MembershipsController {
       status: body.status as keyof typeof MembershipStatus,
     });
   }
+
   @Delete(':id')
   async deleteMembership(@Param('id') id: string, @Req() req: AuthRequest) {
     const parsedId = Number(id);

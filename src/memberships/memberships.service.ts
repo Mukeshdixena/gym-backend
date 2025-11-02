@@ -1,3 +1,4 @@
+// src/memberships/memberships.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -5,12 +6,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMembershipDto } from './dto/create-membership.dto';
+import { UpdateMembershipDto } from './dto/update-membership.dto';
+import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { MembershipStatus, Prisma, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class MembershipsService {
   constructor(private prisma: PrismaService) {}
 
+  /* ──────────────────────────────────────────────────────────────
+     CREATE
+  ────────────────────────────────────────────────────────────── */
   async create(data: CreateMembershipDto, userId: number) {
     try {
       const member = await this.prisma.member.findFirst({
@@ -23,26 +29,20 @@ export class MembershipsService {
       });
       if (!plan) throw new BadRequestException('Plan not found');
 
-      // Normalize dates (ignore timezones)
       const startDate = new Date(data.startDate);
       const endDate = new Date(data.endDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
       startDate.setHours(0, 0, 0, 0);
       endDate.setHours(0, 0, 0, 0);
 
-      // ✅ Check 1: End date must be after start date
       if (startDate >= endDate) {
         throw new BadRequestException('End date must be after start date');
       }
-
-      // ✅ Check 2: End date must not be in the past
       if (endDate < today) {
         throw new BadRequestException('End date cannot be in the past');
       }
 
-      // ✅ Check 3: Prevent overlapping memberships for same member
       const overlappingMembership = await this.prisma.membership.findFirst({
         where: {
           memberId: data.memberId,
@@ -104,18 +104,17 @@ export class MembershipsService {
       };
     } catch (error) {
       console.error('Membership creation error:', error);
-
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         throw new BadRequestException('Database constraint error');
       }
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
+      if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('Failed to create membership');
     }
   }
 
+  /* ──────────────────────────────────────────────────────────────
+     READ
+  ────────────────────────────────────────────────────────────── */
   async findAll(userId: number) {
     return this.prisma.membership.findMany({
       where: { userId },
@@ -132,19 +131,156 @@ export class MembershipsService {
     return membership;
   }
 
-  async updateMembership(id: number, data: any, userId: number) {
+  /* ──────────────────────────────────────────────────────────────
+     UPDATE (now type-safe)
+  ────────────────────────────────────────────────────────────── */
+  async updateMembership(
+    id: number,
+    data: UpdateMembershipDto,
+    userId: number,
+  ) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, userId },
+      include: { plan: true },
     });
+
     if (!membership) throw new BadRequestException('Membership not found');
+
+    const updates: Prisma.MembershipUpdateInput = { ...data };
+
+    // ---- DATE / PLAN CHANGE -------------------------------------------------
+    if (data.startDate || data.endDate || data.planId) {
+      const startDate = data.startDate
+        ? new Date(data.startDate)
+        : membership.startDate;
+      const endDate = data.endDate
+        ? new Date(data.endDate)
+        : membership.endDate;
+
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      if (startDate >= endDate) {
+        throw new BadRequestException('End date must be after start date');
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (endDate < today) {
+        throw new BadRequestException('End date cannot be in the past');
+      }
+
+      // overlap check (exclude current membership)
+      const overlapping = await this.prisma.membership.findFirst({
+        where: {
+          memberId: membership.memberId,
+          userId,
+          id: { not: id },
+          AND: [
+            { startDate: { lte: endDate } },
+            { endDate: { gte: startDate } },
+          ],
+        },
+      });
+
+      if (overlapping) {
+        throw new BadRequestException(
+          'Updated dates overlap with another membership',
+        );
+      }
+
+      // ---- PLAN CHANGE --------------------------------------------------------
+      if (data.planId && data.planId !== membership.planId) {
+        const newPlan = await this.prisma.plan.findFirst({
+          where: { id: data.planId, userId },
+        });
+        if (!newPlan) throw new BadRequestException('Plan not found');
+
+        const totalPaidAndDiscount =
+          (membership.paid ?? 0) + (membership.discount ?? 0);
+        const newPending = newPlan.price - totalPaidAndDiscount;
+
+        updates.pending = newPending > 0 ? newPending : 0;
+        updates.status =
+          newPending <= 0 ? MembershipStatus.ACTIVE : MembershipStatus.INACTIVE;
+      }
+    }
 
     return this.prisma.membership.update({
       where: { id },
-      data,
+      data: updates,
       include: { plan: true, member: true, payments: true },
     });
   }
 
+  /* ──────────────────────────────────────────────────────────────
+     REFUND
+  ────────────────────────────────────────────────────────────── */
+  async refundPayment(
+    membershipId: number,
+    userId: number,
+    dto: RefundPaymentDto,
+  ) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id: membershipId, userId },
+      include: { plan: true, payments: true },
+    });
+
+    if (!membership) throw new BadRequestException('Membership not found');
+
+    const currentPaid = membership.paid ?? 0;
+    if (dto.amount > currentPaid) {
+      throw new BadRequestException(
+        'Refund amount cannot exceed total paid amount',
+      );
+    }
+
+    const newPaid = currentPaid - dto.amount;
+    const newPending =
+      membership.plan.price - newPaid - (membership.discount ?? 0);
+
+    const newStatus =
+      newPending <= 0
+        ? MembershipStatus.ACTIVE
+        : newPaid > 0
+          ? MembershipStatus.PARTIAL_PAID
+          : MembershipStatus.INACTIVE;
+
+    const refund = await this.prisma.payment.create({
+      data: {
+        userId,
+        membershipId,
+        amount: -dto.amount,
+        paymentDate: new Date(),
+        method: dto.method ? (dto.method as PaymentMethod) : PaymentMethod.CASH,
+        notes: dto.reason ? `Refund: ${dto.reason}` : 'Refund issued',
+      },
+    });
+
+    const updatedMembership = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: {
+        paid: newPaid,
+        pending: newPending > 0 ? newPending : 0,
+        status: newStatus,
+      },
+      include: {
+        plan: true,
+        member: true,
+        payments: { orderBy: { paymentDate: 'desc' } },
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Refund processed successfully',
+      data: { refund, membership: updatedMembership },
+    };
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     ADD PAYMENT
+  ────────────────────────────────────────────────────────────── */
   async addPayment(
     id: number,
     userId: number,
@@ -218,6 +354,10 @@ export class MembershipsService {
       data: updatedMembership,
     };
   }
+
+  /* ──────────────────────────────────────────────────────────────
+     DELETE
+  ────────────────────────────────────────────────────────────── */
   async deleteMembership(id: number, userId: number) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, userId },

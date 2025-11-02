@@ -1,15 +1,30 @@
-import { IsOptional, IsNumber, IsString } from 'class-validator';
+// src/memberships/dto/update-membership.dto.ts
+import { IsOptional, IsDateString, IsInt, IsEnum } from 'class-validator';
+import { MembershipStatus } from '@prisma/client';
 
 export class UpdateMembershipDto {
   @IsOptional()
-  @IsNumber()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  planId?: number;
+
+  @IsOptional()
+  @IsEnum(MembershipStatus)
+  status?: MembershipStatus;
+
+  @IsOptional()
   paid?: number;
 
   @IsOptional()
-  @IsNumber()
   discount?: number;
 
   @IsOptional()
-  @IsString()
-  status?: string;
+  pending?: number;
 }
