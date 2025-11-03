@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { Prisma } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/auth.guard'; // ← Import your guard
+import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 
 interface AuthRequest extends Request {
