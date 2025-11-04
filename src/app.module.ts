@@ -15,6 +15,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { AdminUsersModule } from './admin-users/admin-users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AddonsModule } from './addons/addons.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AppService } from './app.service';
     DashboardModule,
     PaymentsModule,
     AdminUsersModule,
+    AddonsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
