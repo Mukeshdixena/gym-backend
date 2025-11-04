@@ -93,8 +93,8 @@ export class MembersService {
         where,
         include: {
           memberships: { include: { plan: true } },
-          attendances: true,
-          classes: true,
+          // attendances: true,
+          // classes: true,
         },
         orderBy: { [field]: order },
         skip: (page - 1) * limit,
@@ -120,8 +120,8 @@ export class MembersService {
       where: { id, userId },
       include: {
         memberships: { include: { plan: true } },
-        attendances: true,
-        classes: true,
+        // attendances: true,
+        // classes: true,
       },
     });
 
@@ -182,8 +182,8 @@ export class MembersService {
       data: cleanData,
       include: {
         memberships: { include: { plan: true } },
-        attendances: true,
-        classes: true,
+        // attendances: true,
+        // classes: true,
       },
     });
   }

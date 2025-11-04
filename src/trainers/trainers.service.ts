@@ -66,7 +66,7 @@ export class TrainersService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.trainer.findMany({
         where,
-        include: { classes: true },
+        // include: { classes: true },
         orderBy: { [field]: order },
         skip: (page - 1) * limit,
         take: limit,
@@ -89,7 +89,7 @@ export class TrainersService {
   async findOne(id: number, userId: number): Promise<Trainer> {
     const trainer = await this.prisma.trainer.findUnique({
       where: { id },
-      include: { classes: true },
+      // include: { classes: true },
     });
     if (!trainer)
       throw new NotFoundException(`Trainer with ID ${id} not found`);

@@ -6,47 +6,75 @@ import {
   Min,
   IsDateString,
   IsEnum,
-  IsPositive,
-  Max, // ← NEW
+  Max,
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
-import { ApiProperty } from '@nestjs/swagger'; // optional – for Swagger docs
+import { ApiProperty } from '@nestjs/swagger';
 
 export class GetPaymentHistoryDto {
-  @ApiProperty({ example: 5, required: false })
+  @ApiProperty({
+    description:
+      'Filter payments by member ID. Applies to both membership and addon payments.',
+    example: 5,
+    required: false,
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
   memberId?: number;
 
-  @ApiProperty({ example: '2025-01-01', required: false })
+  @ApiProperty({
+    description: 'Start date for payment date range (ISO 8601 format)',
+    example: '2025-01-01',
+    required: false,
+  })
   @IsOptional()
   @IsDateString()
   startDate?: string;
 
-  @ApiProperty({ example: '2025-12-31', required: false })
+  @ApiProperty({
+    description: 'End date for payment date range (ISO 8601 format)',
+    example: '2025-12-31',
+    required: false,
+  })
   @IsOptional()
   @IsDateString()
   endDate?: string;
 
-  @ApiProperty({ enum: PaymentMethod, required: false })
+  @ApiProperty({
+    description: 'Filter by payment method',
+    enum: PaymentMethod,
+    example: PaymentMethod.UPI,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(PaymentMethod)
   method?: PaymentMethod;
 
-  @ApiProperty({ example: 1, minimum: 1, default: 1 })
+  @ApiProperty({
+    description: 'Page number for pagination',
+    minimum: 1,
+    default: 1,
+    example: 1,
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  page?: number = 1;
+  page? = 1;
 
-  @ApiProperty({ example: 10, minimum: 1, maximum: 100, default: 10 })
+  @ApiProperty({
+    description: 'Number of items per page (max 100)',
+    minimum: 1,
+    maximum: 100,
+    default: 10,
+    example: 10,
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(100) // ← NOW RESOLVED
+  @Max(100)
   @Type(() => Number)
-  limit?: number = 10;
+  limit? = 10;
 }

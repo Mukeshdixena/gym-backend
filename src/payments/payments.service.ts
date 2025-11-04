@@ -12,6 +12,7 @@ import { PaymentMethod, Prisma } from '@prisma/client';
 export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
+  // src/payments/payments.service.ts (UPDATED)
   async getPaymentHistory(userId: number, filters: GetPaymentHistoryDto) {
     const {
       memberId,
@@ -24,11 +25,9 @@ export class PaymentsService {
 
     const skip = (page - 1) * limit;
 
+    // Build dynamic where clause
     const where: Prisma.PaymentWhereInput = {
       userId,
-      ...(memberId && {
-        membership: { memberId },
-      }),
       ...(method && { method }),
       ...(startDate || endDate
         ? {
@@ -39,6 +38,11 @@ export class PaymentsService {
           }
         : {}),
     };
+
+    // Apply memberId filter via OR condition on membership OR memberAddon
+    if (memberId) {
+      where.OR = [{ membership: { memberId } }, { memberAddon: { memberId } }];
+    }
 
     try {
       const [payments, total] = await Promise.all([
@@ -63,6 +67,31 @@ export class PaymentsService {
                 },
               },
             },
+            memberAddon: {
+              include: {
+                member: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+                addon: {
+                  select: {
+                    name: true,
+                    price: true,
+                  },
+                },
+                trainer: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
           },
           orderBy: { paymentDate: 'desc' },
           skip,
@@ -73,23 +102,69 @@ export class PaymentsService {
 
       const data = payments.map((p) => {
         const membership = p.membership;
-        const member = membership?.member;
-        const plan = membership?.plan;
+        const memberAddon = p.memberAddon;
 
+        // Common member info
+        const member = membership?.member || memberAddon?.member;
+        const memberInfo = member
+          ? {
+              id: member.id,
+              name: `${member.firstName} ${member.lastName}`,
+              email: member.email,
+            }
+          : null;
+
+        // Determine type and details
+        if (membership) {
+          return {
+            id: p.id,
+            amount: p.amount,
+            paymentDate: p.paymentDate,
+            method: p.method,
+            type: 'membership' as const,
+            member: memberInfo,
+            plan: membership.plan?.name ?? null,
+            membershipId: p.membershipId,
+            addonId: null,
+            addonName: null,
+            trainer: null,
+          };
+        }
+
+        if (memberAddon) {
+          return {
+            id: p.id,
+            amount: p.amount,
+            paymentDate: p.paymentDate,
+            method: p.method,
+            type: 'addon' as const,
+            member: memberInfo,
+            plan: null,
+            membershipId: null,
+            addonId: p.memberAddonId,
+            addonName: memberAddon.addon?.name ?? null,
+            trainer: memberAddon.trainer
+              ? {
+                  id: memberAddon.trainer.id,
+                  name: `${memberAddon.trainer.firstName} ${memberAddon.trainer.lastName}`,
+                }
+              : null,
+          };
+        }
+
+        // Fallback (shouldn't happen)
         return {
           id: p.id,
           amount: p.amount,
           paymentDate: p.paymentDate,
           method: p.method,
-          member: member
-            ? {
-                id: member.id,
-                name: `${member.firstName} ${member.lastName}`,
-                email: member.email,
-              }
-            : null,
-          plan: plan?.name ?? null,
-          membershipId: p.membershipId,
+          type: 'unknown' as const,
+          member: null,
+          plan: null,
+          membershipId: null,
+          addonId: null,
+          addonName: null,
+          trainer: null,
         };
       });
 

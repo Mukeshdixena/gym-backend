@@ -16,11 +16,9 @@ model User {
   members     Member[]
   trainers    Trainer[]
   plans       Plan[]
-  classes     Class[]
   memberships Membership[]
   payments    Payment[]
   addons      Addon[]
-  attendances Attendance[]
   role        UserRole     @default(USER)
   status      UserStatus   @default(PENDING)
   createdAt   DateTime     @default(now())
@@ -38,8 +36,6 @@ model Member {
   address      String?
   dateOfBirth  DateTime?
   memberships  Membership[]
-  attendances  Attendance[]
-  classes      Class[]       @relation("ClassMembers")
   memberAddons MemberAddon[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -58,26 +54,11 @@ model Trainer {
   email        String        @unique
   phone        String
   speciality   String?
-  classes      Class[]
   memberAddons MemberAddon[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
 
-
-model Class {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  name      String
-  trainer   Trainer  @relation(fields: [trainerId], references: [id])
-  trainerId Int
-  startTime DateTime
-  endTime   DateTime
-  members   Member[] @relation("ClassMembers")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 model Membership {
   id        Int              @id @default(autoincrement())
@@ -160,15 +141,6 @@ model Payment {
   notes         String?
 }
 
-model Attendance {
-  id       Int              @id @default(autoincrement())
-  user     User             @relation(fields: [userId], references: [id])
-  userId   Int
-  member   Member           @relation(fields: [memberId], references: [id])
-  memberId Int
-  date     DateTime
-  status   AttendanceStatus @default(PRESENT)
-}
 
 enum MembershipStatus {
   ACTIVE

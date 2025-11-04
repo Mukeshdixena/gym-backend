@@ -15,7 +15,7 @@ export class DashboardService {
       activeMemberships,
       expiredMemberships,
       payments,
-      totalClasses,
+      // totalClasses,
     ] = await Promise.all([
       this.prisma.member.count({ where: { userId } }),
       this.prisma.trainer.count({ where: { userId } }),
@@ -29,7 +29,7 @@ export class DashboardService {
         where: { userId },
         select: { amount: true, paymentDate: true },
       }),
-      this.prisma.class.count({ where: { userId } }),
+      // this.prisma.class.count({ where: { userId } }),
     ]);
 
     const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -53,13 +53,13 @@ export class DashboardService {
     const todayStart = new Date(today.setHours(0, 0, 0, 0));
     const todayEnd = new Date(today.setHours(23, 59, 59, 999));
 
-    const todayAttendance = await this.prisma.attendance.count({
-      where: {
-        userId,
-        date: { gte: todayStart, lte: todayEnd },
-        status: 'PRESENT',
-      },
-    });
+    // const todayAttendance = await this.prisma.attendance.count({
+    //   where: {
+    //     userId,
+    //     date: { gte: todayStart, lte: todayEnd },
+    //     status: 'PRESENT',
+    //   },
+    // });
 
     return {
       members,
@@ -67,9 +67,9 @@ export class DashboardService {
       activeMemberships,
       expiredMemberships,
       totalRevenue,
-      totalClasses,
+      // totalClasses,
       monthlyRevenue,
-      todayAttendance,
+      // todayAttendance,
     };
   }
 }
