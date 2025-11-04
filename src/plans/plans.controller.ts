@@ -18,8 +18,7 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { ToggleStatusDto } from './dto/toggle-status.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
-
-// Swagger (optional – comment out if you don't use it)
+import { PaginatedDto } from '../common/dto/paginated.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
 @ApiTags('plans')
@@ -37,31 +36,22 @@ export class PlansController {
     return this.plansService.create(data, userId);
   }
 
+  // ──────── PAGINATED GET ALL ────────
   @Get()
-  @ApiOperation({
-    summary: 'Get all plans for the authenticated user (with filters)',
-  })
-  async findAll(
-    @Req() req: any,
-    @Query('isActive') isActive?: string,
-    @Query('minPrice') minPrice?: string,
-    @Query('maxPrice') maxPrice?: string,
-    @Query('search') search?: string,
-    @Query('sortBy') sortBy?: string,
-    @Query('order') order?: 'asc' | 'desc',
-  ) {
+  @ApiOperation({ summary: 'Get all plans (paginated, filtered, sorted)' })
+  async findAll(@Req() req: any, @Query() query: PaginatedDto) {
     const userId = req.user?.id;
     if (!userId) throw new BadRequestException('User not authenticated');
 
-    return this.plansService.findAll(userId, {
-      isActive,
-      minPrice,
-      maxPrice,
-      search,
-      sortBy,
-      order,
-    });
+    const result = await this.plansService.findAllPaginated(userId, query);
+    return {
+      success: true,
+      message: 'Plans fetched successfully',
+      data: result.data,
+      meta: result.meta,
+    };
   }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single plan by ID' })
   async findOne(@Param('id') id: string, @Req() req: any) {

@@ -1,4 +1,3 @@
-// src/plans/plans.service.ts
 import {
   Injectable,
   ForbiddenException,
@@ -9,11 +8,25 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Plan, Prisma } from '@prisma/client';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import { PaginatedDto } from '../common/dto/paginated.dto';
+
+export interface PaginatedResult<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
 
 @Injectable()
 export class PlansService {
   constructor(private prisma: PrismaService) {}
 
+  // ──────────────────────────────────────────────────────────────
+  // CREATE PLAN
+  // ──────────────────────────────────────────────────────────────
   async create(data: CreatePlanDto, userId: number): Promise<Plan> {
     return this.prisma.plan.create({
       data: {
@@ -24,53 +37,72 @@ export class PlansService {
     });
   }
 
-  async findAll(
+  // ──────────────────────────────────────────────────────────────
+  // PAGINATED LIST (with filters, search, sort)
+  // ──────────────────────────────────────────────────────────────
+  async findAllPaginated(
     userId: number,
-    filters: {
-      isActive?: string;
-      minPrice?: string;
-      maxPrice?: string;
-      search?: string;
-      sortBy?: string;
-      order?: 'asc' | 'desc';
-    },
-  ): Promise<Plan[]> {
-    const where: any = { userId };
+    query: PaginatedDto,
+  ): Promise<PaginatedResult<Plan>> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      isActive,
+      minPrice,
+      maxPrice,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+    } = query;
 
-    // 🔍 Filter by active status
-    if (filters.isActive !== undefined) {
-      where.isActive = filters.isActive === 'true';
-    }
+    const validSortFields = ['name', 'price', 'durationDays', 'createdAt'];
+    const field = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const order = sortOrder.toLowerCase() as Prisma.SortOrder;
 
-    // 💰 Filter by price range
-    if (filters.minPrice || filters.maxPrice) {
-      where.price = {};
-      if (filters.minPrice) where.price.gte = parseFloat(filters.minPrice);
-      if (filters.maxPrice) where.price.lte = parseFloat(filters.maxPrice);
-    }
+    const where: Prisma.PlanWhereInput = {
+      userId,
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+      ...(isActive !== '' && { isActive: isActive === 'true' }),
+      ...(minPrice !== undefined || maxPrice !== undefined
+        ? {
+            price: {
+              gte: minPrice,
+              lte: maxPrice,
+            },
+          }
+        : {}),
+    };
 
-    // 🔎 Search by name or description
-    if (filters.search) {
-      where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { description: { contains: filters.search, mode: 'insensitive' } },
-      ];
-    }
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.plan.findMany({
+        where,
+        include: { memberships: true },
+        orderBy: { [field]: order },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.plan.count({ where }),
+    ]);
 
-    // 🧭 Sorting
-    const validSortFields = ['price', 'durationDays', 'createdAt', 'name'];
-    const sortField: string = validSortFields.includes(filters.sortBy || '')
-      ? (filters.sortBy as string)
-      : 'createdAt';
-    const sortOrder = filters.order === 'asc' ? 'asc' : 'desc';
-
-    return this.prisma.plan.findMany({
-      where,
-      include: { memberships: true },
-      orderBy: { [sortField]: sortOrder },
-    });
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
+  // ──────────────────────────────────────────────────────────────
+  // GET SINGLE PLAN
+  // ──────────────────────────────────────────────────────────────
   async findOne(id: number, userId: number): Promise<Plan> {
     const plan = await this.prisma.plan.findUnique({
       where: { id },
@@ -83,6 +115,9 @@ export class PlansService {
     return plan;
   }
 
+  // ──────────────────────────────────────────────────────────────
+  // UPDATE PLAN
+  // ──────────────────────────────────────────────────────────────
   async update(id: number, data: UpdatePlanDto, userId: number): Promise<Plan> {
     const existing = await this.prisma.plan.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Plan not found');
@@ -91,11 +126,13 @@ export class PlansService {
 
     return this.prisma.plan.update({
       where: { id },
-      data,
+      data: { ...data, updatedAt: new Date() },
     });
   }
 
-  // NEW: Toggle active status
+  // ──────────────────────────────────────────────────────────────
+  // TOGGLE ACTIVE STATUS
+  // ──────────────────────────────────────────────────────────────
   async toggleStatus(
     id: number,
     isActive: boolean,
@@ -112,17 +149,15 @@ export class PlansService {
     });
   }
 
+  // ──────────────────────────────────────────────────────────────
+  // DELETE PLAN (with membership check)
+  // ──────────────────────────────────────────────────────────────
   async remove(id: number, userId: number): Promise<Plan> {
     const existing = await this.prisma.plan.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException('Plan not found');
-    }
-
-    if (existing.userId !== userId) {
+    if (!existing) throw new NotFoundException('Plan not found');
+    if (existing.userId !== userId)
       throw new ForbiddenException('Access denied');
-    }
 
-    // Check if any Membership references this plan
     const membershipCount = await this.prisma.membership.count({
       where: { planId: id },
     });
