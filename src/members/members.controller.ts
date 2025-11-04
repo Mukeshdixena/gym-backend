@@ -1,3 +1,4 @@
+// src/members/members.controller.ts
 import {
   Get,
   Param,
@@ -13,6 +14,7 @@ import {
   ValidationPipe,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { Prisma } from '@prisma/client';
@@ -20,12 +22,10 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
+import { PaginatedDto } from '../common/dto/paginated.dto';
 
-// Define authenticated request type
 interface AuthRequest extends Request {
-  user: {
-    id: number;
-  };
+  user: { id: number };
 }
 
 @UseGuards(JwtAuthGuard)
@@ -44,23 +44,20 @@ export class MembersController {
         data: member,
       };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      throw this.handlePrismaError(error);
+      throw this.handleError(error);
     }
   }
 
+  // PAGINATED LIST
   @Get()
-  async findAll(@Req() req: AuthRequest) {
-    const members = await this.membersService.findAll(req.user.id);
-    return { success: true, count: members.length, data: members };
+  async findAll(@Req() req: AuthRequest, @Query() query: PaginatedDto) {
+    const result = await this.membersService.findAllPaginated(
+      req.user.id,
+      query,
+    );
+    return { success: true, ...result };
   }
 
-  // ⚡️Keep static route above dynamic routes
   @Get('recent')
   async getRecent(@Req() req: AuthRequest) {
     const recent = await this.membersService.getRecentMembers(req.user.id);
@@ -73,13 +70,7 @@ export class MembersController {
       const member = await this.membersService.findOne(Number(id), req.user.id);
       return { success: true, data: member };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      throw this.handlePrismaError(error);
+      throw this.handleError(error);
     }
   }
 
@@ -102,13 +93,7 @@ export class MembersController {
         data: updated,
       };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      throw this.handlePrismaError(error);
+      throw this.handleError(error);
     }
   }
 
@@ -118,17 +103,11 @@ export class MembersController {
       await this.membersService.remove(Number(id), req.user.id);
       return { success: true, message: 'Member deleted successfully' };
     } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-      throw this.handlePrismaError(error);
+      throw this.handleError(error);
     }
   }
 
-  private handlePrismaError(error: unknown): never {
+  private handleError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       // Unique constraint violation
       if (error.code === 'P2002') {

@@ -1,3 +1,4 @@
+// src/trainers/trainers.controller.ts
 import {
   Controller,
   Get,
@@ -9,20 +10,19 @@ import {
   Req,
   UseGuards,
   ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import { TrainersService } from './trainers.service';
 import { Prisma } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/auth.guard'; // ← Reusable guard
+import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
+import { PaginatedDto } from '../common/dto/paginated.dto';
 
-// Define authenticated request
 interface AuthRequest extends Request {
-  user: {
-    id: number;
-  };
+  user: { id: number };
 }
 
-@UseGuards(JwtAuthGuard) // ← Clean, reusable, typed
+@UseGuards(JwtAuthGuard)
 @Controller('trainers')
 export class TrainersController {
   constructor(private readonly trainersService: TrainersService) {}
@@ -34,11 +34,12 @@ export class TrainersController {
     return this.trainersService.create(data, userId);
   }
 
+  // PAGINATED GET ALL
   @Get()
-  findAll(@Req() req: AuthRequest) {
+  findAll(@Req() req: AuthRequest, @Query() query: PaginatedDto) {
     const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
-    return this.trainersService.findAll(userId);
+    return this.trainersService.findAllPaginated(userId, query);
   }
 
   @Get(':id')
