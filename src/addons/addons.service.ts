@@ -37,6 +37,9 @@ export class AddonsService {
     });
   }
 
+  // ──────────────────────────────────────────────────────────────
+  // FIND ALL (FILTERS + SORT)
+  // ──────────────────────────────────────────────────────────────
   async findAll(
     userId: number,
     filters: {
@@ -50,19 +53,16 @@ export class AddonsService {
   ): Promise<Addon[]> {
     const where: any = { userId };
 
-    // Filter by active status
     if (filters.isActive !== undefined) {
       where.isActive = filters.isActive === 'true';
     }
 
-    // Filter by price range
     if (filters.minPrice || filters.maxPrice) {
       where.price = {};
       if (filters.minPrice) where.price.gte = parseFloat(filters.minPrice);
       if (filters.maxPrice) where.price.lte = parseFloat(filters.maxPrice);
     }
 
-    // Search by name or description
     if (filters.search) {
       where.OR = [
         { name: { contains: filters.search, mode: 'insensitive' } },
@@ -70,7 +70,6 @@ export class AddonsService {
       ];
     }
 
-    // Sorting
     const validSortFields = ['price', 'durationDays', 'createdAt', 'name'];
     const sortField: string = validSortFields.includes(filters.sortBy || '')
       ? (filters.sortBy as string)
@@ -79,12 +78,13 @@ export class AddonsService {
 
     return this.prisma.addon.findMany({
       where,
-      include: { memberAddons: true }, // equivalent to memberships
+      include: { memberAddons: true },
       orderBy: { [sortField]: sortOrder },
     });
   }
+
   // ──────────────────────────────────────────────────────────────
-  // PAGINATED LIST (with filters, search, sort)
+  // PAGINATED LIST
   // ──────────────────────────────────────────────────────────────
   async findAllPaginated(
     userId: number,
@@ -124,9 +124,7 @@ export class AddonsService {
       this.prisma.addon.findMany({
         where,
         include: {
-          memberAddons: {
-            include: { member: true },
-          },
+          memberAddons: { include: { member: true, trainer: true } },
         },
         orderBy: {
           [sortBy]: sortOrder.toLowerCase() as Prisma.SortOrder,
@@ -155,9 +153,7 @@ export class AddonsService {
     const addon = await this.prisma.addon.findFirst({
       where: { id, userId },
       include: {
-        memberAddons: {
-          include: { member: true },
-        },
+        memberAddons: { include: { member: true, trainer: true } },
       },
     });
 
@@ -185,7 +181,7 @@ export class AddonsService {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // DELETE ADDON (with cascade cleanup)
+  // DELETE ADDON
   // ──────────────────────────────────────────────────────────────
   async delete(id: number, userId: number) {
     const existing = await this.prisma.addon.findFirst({
@@ -195,11 +191,14 @@ export class AddonsService {
     if (!existing) throw new NotFoundException('Addon not found');
 
     await this.prisma.$transaction([
+      this.prisma.payment.deleteMany({
+        where: { memberAddon: { addonId: id } },
+      }),
       this.prisma.memberAddon.deleteMany({ where: { addonId: id } }),
       this.prisma.addon.delete({ where: { id } }),
     ]);
 
-    return { id };
+    return { message: 'Addon deleted successfully', id };
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -217,32 +216,30 @@ export class AddonsService {
     if (!member) throw new NotFoundException('Member not found');
 
     const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
-    const endDate = dto.endDate
-      ? new Date(dto.endDate)
-      : addon.durationDays
-      ? new Date(startDate.getTime() + addon.durationDays * 24 * 60 * 60 * 1000)
-      : undefined;
+    const duration = addon.durationDays ?? 0;
+    const endDate =
+      dto.endDate ||
+      (duration > 0
+        ? new Date(startDate.getTime() + duration * 24 * 60 * 60 * 1000)
+        : (() => {
+            throw new BadRequestException(
+              'Addon must have durationDays or endDate defined',
+            );
+          })());
 
-    const memberAddonData: any = {
+    const data: Prisma.MemberAddonCreateInput = {
       member: { connect: { id: dto.memberId } },
       addon: { connect: { id: dto.addonId } },
-      ...(dto.trainerId ? { trainer: { connect: { id: dto.trainerId } } } : {}),
       startDate,
+      endDate,
       price: dto.price ?? addon.price,
       status: MembershipStatus.ACTIVE,
+      ...(dto.trainerId ? { trainer: { connect: { id: dto.trainerId } } } : {}),
     };
 
-    if (endDate) {
-      // only assign endDate when defined to avoid `Date | undefined` type
-      memberAddonData.endDate = endDate;
-    }
-
     return this.prisma.memberAddon.create({
-      data: memberAddonData as Prisma.MemberAddonCreateInput,
-      include: {
-        addon: true,
-        member: true,
-      },
+      data,
+      include: { addon: true, member: true, trainer: true },
     });
   }
 
@@ -254,6 +251,7 @@ export class AddonsService {
       where: { id },
       include: { addon: true },
     });
+
     if (!memberAddon) throw new NotFoundException('Member Addon not found');
 
     const refundAmount = dto.amount;
@@ -269,10 +267,11 @@ export class AddonsService {
     const refund = await this.prisma.payment.create({
       data: {
         userId,
+        memberAddon: { connect: { id } },
         amount: -refundAmount,
         method,
         notes: dto.reason || 'Addon refund issued',
-      } as any, // Prisma doesn't expose membershipId in PaymentCreateInput
+      } as any,
     });
 
     await this.prisma.memberAddon.update({
@@ -280,6 +279,6 @@ export class AddonsService {
       data: { status: MembershipStatus.CANCELLED },
     });
 
-    return { refund, memberAddonId: id };
+    return { message: 'Refund processed', refund, memberAddonId: id };
   }
 }

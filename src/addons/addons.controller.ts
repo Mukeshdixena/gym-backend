@@ -11,7 +11,6 @@ import {
   UsePipes,
   ValidationPipe,
   BadRequestException,
-  InternalServerErrorException,
   Query,
 } from '@nestjs/common';
 import { AddonsService } from './addons.service';
@@ -31,7 +30,7 @@ interface AuthRequest extends Request {
 export class AddonsController {
   constructor(private readonly addonsService: AddonsService) {}
 
-  // ──────── CRUD ────────
+  // ────────────── CREATE ──────────────
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true }))
   async create(@Body() dto: CreateAddonDto, @Req() req: AuthRequest) {
@@ -43,7 +42,7 @@ export class AddonsController {
     };
   }
 
-  /** PAGINATED LIST **/
+  // ────────────── PAGINATED FETCH ──────────────
   @Get()
   async findAll(@Req() req: AuthRequest, @Query() query: PaginatedDto) {
     const result = await this.addonsService.findAllPaginated(
@@ -58,9 +57,10 @@ export class AddonsController {
     };
   }
 
+  // ────────────── FILTERED LIST ──────────────
   @Get('list-all')
   async findAllAddons(
-    @Req() req: any,
+    @Req() req: AuthRequest,
     @Query('isActive') isActive?: string,
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
@@ -85,11 +85,14 @@ export class AddonsController {
   async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid Addon ID');
+
     const data = await this.addonsService.findOne(parsedId, req.user.id);
     return { success: true, message: 'Addon fetched successfully', data };
   }
 
+  // ────────────── UPDATE ──────────────
   @Patch(':id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateAddonDto,
@@ -97,14 +100,17 @@ export class AddonsController {
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid Addon ID');
+
     const data = await this.addonsService.update(parsedId, dto, req.user.id);
     return { success: true, message: 'Addon updated successfully', data };
   }
 
+  // ────────────── DELETE ──────────────
   @Delete(':id')
   async delete(@Param('id') id: string, @Req() req: AuthRequest) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid Addon ID');
+
     const result = await this.addonsService.delete(parsedId, req.user.id);
     return {
       success: true,
@@ -113,8 +119,9 @@ export class AddonsController {
     };
   }
 
-  // ──────── ASSIGN / REFUND ────────
+  // ────────────── ASSIGN ADDON ──────────────
   @Post('assign')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async assignMemberAddon(
     @Body() dto: AssignMemberAddonDto,
     @Req() req: AuthRequest,
@@ -123,7 +130,9 @@ export class AddonsController {
     return { success: true, message: 'Addon assigned successfully', data };
   }
 
+  // ────────────── REFUND ADDON ──────────────
   @Patch('refund/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async refundAddon(
     @Param('id') id: string,
     @Body() dto: RefundAddonDto,
@@ -131,6 +140,7 @@ export class AddonsController {
   ) {
     const parsedId = Number(id);
     if (isNaN(parsedId)) throw new BadRequestException('Invalid Addon ID');
+
     const data = await this.addonsService.refundAddon(
       parsedId,
       dto,

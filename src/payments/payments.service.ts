@@ -71,19 +71,27 @@ export class PaymentsService {
         this.prisma.payment.count({ where }),
       ]);
 
-      const data = payments.map((p) => ({
-        id: p.id,
-        amount: p.amount,
-        paymentDate: p.paymentDate,
-        method: p.method,
-        member: {
-          id: p.membership.member.id,
-          name: `${p.membership.member.firstName} ${p.membership.member.lastName}`,
-          email: p.membership.member.email,
-        },
-        plan: p.membership.plan.name,
-        membershipId: p.membershipId,
-      }));
+      const data = payments.map((p) => {
+        const membership = p.membership;
+        const member = membership?.member;
+        const plan = membership?.plan;
+
+        return {
+          id: p.id,
+          amount: p.amount,
+          paymentDate: p.paymentDate,
+          method: p.method,
+          member: member
+            ? {
+                id: member.id,
+                name: `${member.firstName} ${member.lastName}`,
+                email: member.email,
+              }
+            : null,
+          plan: plan?.name ?? null,
+          membershipId: p.membershipId,
+        };
+      });
 
       return {
         success: true,

@@ -16,6 +16,7 @@ import { AdminUsersModule } from './admin-users/admin-users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AddonsModule } from './addons/addons.module';
+import { MemberAddonsModule } from './member-addons/member-addons.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AddonsModule } from './addons/addons.module';
     PaymentsModule,
     AdminUsersModule,
     AddonsModule,
+    MemberAddonsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
