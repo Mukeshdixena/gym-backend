@@ -9,7 +9,7 @@ import { UpdateAddonDto } from './dto/update-addon.dto';
 import { AssignMemberAddonDto } from './dto/assign-member-addon.dto';
 import { RefundAddonDto } from './dto/refund-addon.dto';
 import { PaginatedDto } from '../common/dto/paginated.dto';
-import { MembershipStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { MembershipStatus, PaymentMethod, Prisma, Addon } from '@prisma/client';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -37,6 +37,52 @@ export class AddonsService {
     });
   }
 
+  async findAll(
+    userId: number,
+    filters: {
+      isActive?: string;
+      minPrice?: string;
+      maxPrice?: string;
+      search?: string;
+      sortBy?: string;
+      order?: 'asc' | 'desc';
+    },
+  ): Promise<Addon[]> {
+    const where: any = { userId };
+
+    // Filter by active status
+    if (filters.isActive !== undefined) {
+      where.isActive = filters.isActive === 'true';
+    }
+
+    // Filter by price range
+    if (filters.minPrice || filters.maxPrice) {
+      where.price = {};
+      if (filters.minPrice) where.price.gte = parseFloat(filters.minPrice);
+      if (filters.maxPrice) where.price.lte = parseFloat(filters.maxPrice);
+    }
+
+    // Search by name or description
+    if (filters.search) {
+      where.OR = [
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        { description: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Sorting
+    const validSortFields = ['price', 'durationDays', 'createdAt', 'name'];
+    const sortField: string = validSortFields.includes(filters.sortBy || '')
+      ? (filters.sortBy as string)
+      : 'createdAt';
+    const sortOrder = filters.order === 'asc' ? 'asc' : 'desc';
+
+    return this.prisma.addon.findMany({
+      where,
+      include: { memberAddons: true }, // equivalent to memberships
+      orderBy: { [sortField]: sortOrder },
+    });
+  }
   // ──────────────────────────────────────────────────────────────
   // PAGINATED LIST (with filters, search, sort)
   // ──────────────────────────────────────────────────────────────

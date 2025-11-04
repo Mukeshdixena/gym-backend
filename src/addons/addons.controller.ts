@@ -58,6 +58,29 @@ export class AddonsController {
     };
   }
 
+  @Get('list-all')
+  async findAllAddons(
+    @Req() req: any,
+    @Query('isActive') isActive?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('order') order?: 'asc' | 'desc',
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not authenticated');
+
+    return this.addonsService.findAll(userId, {
+      isActive,
+      minPrice,
+      maxPrice,
+      search,
+      sortBy,
+      order,
+    });
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Req() req: AuthRequest) {
     const parsedId = Number(id);
