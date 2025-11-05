@@ -47,9 +47,11 @@ export class MemberAddonsService {
         if (endDate < today)
           throw new BadRequestException('End date cannot be in the past');
 
+        // ✅ Only check overlap for same member and same addon
         const overlapping = await tx.memberAddon.findFirst({
           where: {
             memberId: data.memberId,
+            addonId: data.addonId,
             member: { userId },
             AND: [
               { startDate: { lte: endDate } },
@@ -57,9 +59,10 @@ export class MemberAddonsService {
             ],
           },
         });
+
         if (overlapping)
           throw new BadRequestException(
-            'Addon dates overlap with an existing addon for this member',
+            'This member already has an overlapping subscription for the same Special Program',
           );
 
         const paid = data.paid ?? 0;
