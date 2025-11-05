@@ -1,10 +1,4 @@
-import {
-  IsString,
-  IsEmail,
-  IsOptional,
-  IsDateString,
-  Length,
-} from 'class-validator';
+import { IsString, IsEmail, IsOptional, Length } from 'class-validator';
 
 export class CreateMemberDto {
   @IsString()
@@ -27,6 +21,14 @@ export class CreateMemberDto {
   address?: string;
 
   @IsOptional()
-  @IsDateString()
-  dateOfBirth?: string;
+  @IsString()
+  gender?: string;
+
+  @IsOptional()
+  @IsString()
+  referralSource?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

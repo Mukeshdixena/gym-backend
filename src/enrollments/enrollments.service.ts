@@ -24,14 +24,14 @@ export class EnrollmentsService {
         const member = await tx.member.create({
           data: {
             userId,
-            firstName: dto.firstName ?? '',
-            lastName: dto.lastName ?? '',
-            email: dto.email ?? '',
-            phone: dto.phone ?? '',
-            address: dto.address ?? '',
-            dateOfBirth: dto.dateOfBirth
-              ? new Date(dto.dateOfBirth)
-              : undefined,
+            firstName: dto.firstName?.trim() ?? '',
+            lastName: dto.lastName?.trim() ?? '',
+            email: dto.email?.trim() ?? '',
+            phone: dto.phone?.trim() ?? '',
+            address: dto.address?.trim() ?? '',
+            gender: dto.gender ?? null,
+            referralSource: dto.referralSource?.trim() ?? null,
+            notes: dto.notes?.trim() ?? null,
           },
         });
         memberId = member.id;

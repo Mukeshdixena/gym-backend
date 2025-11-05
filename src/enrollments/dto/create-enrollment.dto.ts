@@ -4,13 +4,16 @@ import {
   IsNumber,
   IsDateString,
   Min,
+  IsIn,
 } from 'class-validator';
 
 export class CreateEnrollmentDto {
+  // ─────────────── Member Selection ───────────────
   @IsOptional()
   @IsNumber()
   selectedMember?: number;
 
+  // ─────────────── New Member Info (if created) ───────────────
   @IsOptional()
   @IsString()
   firstName?: string;
@@ -32,17 +35,29 @@ export class CreateEnrollmentDto {
   address?: string;
 
   @IsOptional()
-  @IsDateString()
-  dateOfBirth?: string;
+  @IsString()
+  @IsIn(['Male', 'Female', 'Other'], {
+    message: 'Gender must be Male, Female, or Other',
+  })
+  gender?: string;
 
+  @IsOptional()
+  @IsString()
+  referralSource?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  // ─────────────── Membership Details ───────────────
   @IsNumber()
-  planId!: number; // Add !
+  planId!: number;
 
   @IsDateString()
-  startDate!: string; // Add !
+  startDate!: string;
 
   @IsDateString()
-  endDate!: string; // Add !
+  endDate!: string;
 
   @IsOptional()
   @IsNumber()
@@ -53,4 +68,12 @@ export class CreateEnrollmentDto {
   @IsNumber()
   @Min(0)
   paid?: number;
+
+  // ─────────────── Payment Info ───────────────
+  @IsOptional()
+  @IsString()
+  @IsIn(['CASH', 'CARD', 'UPI', 'ONLINE'], {
+    message: 'Payment method must be CASH, CARD, UPI, or ONLINE',
+  })
+  paymentMethod?: string;
 }

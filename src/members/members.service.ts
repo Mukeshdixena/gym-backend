@@ -54,7 +54,9 @@ export class MembersService {
         email,
         phone,
         address: data.address?.trim(),
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+        gender: data.gender?.trim(),
+        referralSource: data.referralSource?.trim(),
+        notes: data.notes?.trim(),
         user: { connect: { id: userId } },
       },
     });
@@ -84,6 +86,7 @@ export class MembersService {
           { firstName: { contains: search, mode: 'insensitive' } },
           { lastName: { contains: search, mode: 'insensitive' } },
           { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
         ],
       }),
     };
@@ -93,8 +96,7 @@ export class MembersService {
         where,
         include: {
           memberships: { include: { plan: true } },
-          // attendances: true,
-          // classes: true,
+          memberAddons: { include: { addon: true } },
         },
         orderBy: { [field]: order },
         skip: (page - 1) * limit,
@@ -120,8 +122,7 @@ export class MembersService {
       where: { id, userId },
       include: {
         memberships: { include: { plan: true } },
-        // attendances: true,
-        // classes: true,
+        memberAddons: { include: { addon: true } },
       },
     });
 
@@ -173,7 +174,11 @@ export class MembersService {
       ...(updateEmail && { email: updateEmail }),
       ...(updatePhone && { phone: updatePhone }),
       ...(data.address !== undefined && { address: data.address?.trim() }),
-      ...(data.dateOfBirth && { dateOfBirth: new Date(data.dateOfBirth) }),
+      ...(data.gender !== undefined && { gender: data.gender?.trim() }),
+      ...(data.referralSource !== undefined && {
+        referralSource: data.referralSource?.trim(),
+      }),
+      ...(data.notes !== undefined && { notes: data.notes?.trim() }),
       updatedAt: new Date(),
     };
 
@@ -182,8 +187,7 @@ export class MembersService {
       data: cleanData,
       include: {
         memberships: { include: { plan: true } },
-        // attendances: true,
-        // classes: true,
+        memberAddons: { include: { addon: true } },
       },
     });
   }

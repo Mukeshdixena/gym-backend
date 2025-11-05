@@ -26,19 +26,21 @@ model User {
 }
 
 model Member {
-  id           Int           @id @default(autoincrement())
-  user         User          @relation(fields: [userId], references: [id])
-  userId       Int
-  firstName    String
-  lastName     String
-  email        String
-  phone        String
-  address      String?
-  dateOfBirth  DateTime?
-  memberships  Membership[]
-  memberAddons MemberAddon[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             Int           @id @default(autoincrement())
+  user           User          @relation(fields: [userId], references: [id])
+  userId         Int
+  firstName      String
+  lastName       String
+  email          String
+  phone          String
+  address        String?
+  gender         String?
+  referralSource String?
+  notes          String?
+  memberships    Membership[]
+  memberAddons   MemberAddon[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([email, userId])
   @@unique([phone, userId])
