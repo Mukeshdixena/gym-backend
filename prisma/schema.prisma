@@ -55,7 +55,11 @@ model Trainer {
   lastName     String
   email        String        @unique
   phone        String
+  address      String?
+  salary       Float?
   speciality   String?
+  notes        String?
+  joiningDate  DateTime?
   memberAddons MemberAddon[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

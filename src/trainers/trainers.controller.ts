@@ -17,6 +17,8 @@ import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
 import { PaginatedDto } from '../common/dto/paginated.dto';
+import { CreateTrainerDto } from './dto/create-trainer.dto';
+import { UpdateTrainerDto } from './dto/update-trainer.dto';
 
 interface AuthRequest extends Request {
   user: { id: number };
@@ -28,7 +30,7 @@ export class TrainersController {
   constructor(private readonly trainersService: TrainersService) {}
 
   @Post()
-  create(@Body() data: Prisma.TrainerCreateInput, @Req() req: AuthRequest) {
+  create(@Body() data: CreateTrainerDto, @Req() req: AuthRequest) {
     const userId = req.user.id;
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.trainersService.create(data, userId);
@@ -52,7 +54,7 @@ export class TrainersController {
   @Put(':id')
   update(
     @Param('id') id: string,
-    @Body() data: Prisma.TrainerUpdateInput,
+    @Body() data: UpdateTrainerDto,
     @Req() req: AuthRequest,
   ) {
     const userId = req.user.id;
