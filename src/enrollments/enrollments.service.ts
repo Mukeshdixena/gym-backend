@@ -1,4 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
@@ -6,59 +12,81 @@ import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 export class EnrollmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Create a new enrollment (member + membership + optional payment)
+   */
   async createEnrollment(dto: CreateEnrollmentDto, userId: number) {
-    let memberId: number;
+    return this.prisma.$transaction(async (tx) => {
+      let memberId: number;
 
-    if (!dto.selectedMember) {
-      const member = await this.prisma.member.create({
+      // ✅ Create a new member if not selected
+      if (!dto.selectedMember) {
+        const member = await tx.member.create({
+          data: {
+            userId,
+            firstName: dto.firstName ?? '',
+            lastName: dto.lastName ?? '',
+            email: dto.email ?? '',
+            phone: dto.phone ?? '',
+            address: dto.address ?? '',
+            dateOfBirth: dto.dateOfBirth
+              ? new Date(dto.dateOfBirth)
+              : undefined,
+          },
+        });
+        memberId = member.id;
+      } else {
+        memberId = dto.selectedMember;
+      }
+
+      // ✅ Create membership
+      const membership = await tx.membership.create({
         data: {
           userId,
-          firstName: dto.firstName ?? '',
-          lastName: dto.lastName ?? '',
-          email: dto.email ?? '',
-          phone: dto.phone ?? '',
-          address: dto.address ?? '',
-          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+          memberId,
+          planId: dto.planId,
+          startDate: new Date(dto.startDate),
+          endDate: new Date(dto.endDate),
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          updatedAt: new Date(),
         },
       });
-      memberId = member.id;
-    } else {
-      memberId = dto.selectedMember;
-    }
 
-    const membership = await this.prisma.membership.create({
-      data: {
-        userId,
+      // ✅ Create initial payment if provided
+      if (dto.paid && dto.paid > 0) {
+        await tx.payment.create({
+          data: {
+            userId,
+            membershipId: membership.id,
+            amount: dto.paid,
+            method: 'CASH',
+            createdAt: new Date(),
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Enrollment created successfully',
+        membershipId: membership.id,
         memberId,
-        planId: dto.planId,
-        startDate: new Date(dto.startDate),
-        endDate: new Date(dto.endDate),
-        status: 'ACTIVE',
-      },
+      };
     });
-
-    if (dto.paid && dto.paid > 0) {
-      await this.prisma.payment.create({
-        data: {
-          userId,
-          membershipId: membership.id,
-          amount: dto.paid,
-          method: 'CASH',
-        },
-      });
-    }
-
-    return {
-      message: 'Enrollment created successfully',
-      membershipId: membership.id,
-      memberId,
-    };
   }
 
+  /**
+   * Get all memberships with pending payments
+   */
   async getPendingBills(userId: number) {
     const memberships = await this.prisma.membership.findMany({
       where: { userId, status: 'ACTIVE' },
-      include: { member: true, plan: true, payments: true },
+      include: {
+        member: true,
+        plan: true,
+        payments: true,
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
     return memberships.map((m) => {
@@ -74,14 +102,20 @@ export class EnrollmentsService {
         pending: pendingAmount,
         startDate: m.startDate,
         endDate: m.endDate,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
       };
     });
   }
 
+  /**
+   * Get all approved (fully paid) memberships
+   */
   async getApprovedBills(userId: number) {
     const memberships = await this.prisma.membership.findMany({
-      where: { userId },
+      where: { userId, status: 'ACTIVE' },
       include: { member: true, plan: true, payments: true },
+      orderBy: { updatedAt: 'desc' },
     });
 
     return memberships
@@ -98,48 +132,72 @@ export class EnrollmentsService {
           amount: m.plan.price,
           paid: totalPaid,
           pending: 0,
-          date: m.updatedAt.toLocaleDateString(),
+          approvedOn: m.updatedAt,
         };
       });
   }
 
+  /**
+   * Approve a fully paid bill
+   */
   async approveBill(membershipId: number, userId: number) {
     const membership = await this.prisma.membership.findUnique({
       where: { id: membershipId },
       include: { plan: true, payments: true },
     });
 
-    if (!membership || membership.userId !== userId) {
-      throw new Error('Membership not found or unauthorized');
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.userId !== userId) {
+      throw new ForbiddenException(
+        'You are not authorized to approve this membership',
+      );
     }
 
     const totalPaid = membership.payments.reduce((sum, p) => sum + p.amount, 0);
     if (totalPaid < membership.plan.price) {
-      throw new Error('Cannot approve: pending amount exists');
+      throw new BadRequestException('Cannot approve: pending amount exists');
     }
 
     await this.prisma.membership.update({
       where: { id: membershipId },
-      data: { status: 'ACTIVE' },
+      data: {
+        status: 'ACTIVE',
+        updatedAt: new Date(),
+      },
     });
 
-    return { message: 'Bill approved successfully' };
+    return { success: true, message: 'Bill approved successfully' };
   }
 
+  /**
+   * Reject a membership bill
+   */
   async rejectBill(membershipId: number, userId: number) {
     const membership = await this.prisma.membership.findUnique({
       where: { id: membershipId },
     });
 
-    if (!membership || membership.userId !== userId) {
-      throw new Error('Membership not found or unauthorized');
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.userId !== userId) {
+      throw new ForbiddenException(
+        'You are not authorized to reject this membership',
+      );
     }
 
     await this.prisma.membership.update({
       where: { id: membershipId },
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        updatedAt: new Date(),
+      },
     });
 
-    return { message: 'Bill rejected successfully' };
+    return { success: true, message: 'Bill rejected successfully' };
   }
 }

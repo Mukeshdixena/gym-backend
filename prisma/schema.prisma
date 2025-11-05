@@ -59,7 +59,6 @@ model Trainer {
   updatedAt    DateTime      @updatedAt
 }
 
-
 model Membership {
   id        Int              @id @default(autoincrement())
   user      User             @relation(fields: [userId], references: [id])
@@ -139,8 +138,9 @@ model Payment {
   paymentDate   DateTime      @default(now())
   method        PaymentMethod
   notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
-
 
 enum MembershipStatus {
   ACTIVE
