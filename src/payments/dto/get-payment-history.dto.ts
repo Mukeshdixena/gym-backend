@@ -8,6 +8,14 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
+import { Transform } from 'class-transformer';
+
+// ✅ Proper enum
+export enum PaymentType {
+  MEMBERSHIP = 'membership',
+  ADDON = 'addon',
+  EXPENSE = 'expense',
+}
 
 export class GetPaymentHistoryDto extends PaginatedDto {
   @IsOptional()
@@ -28,4 +36,15 @@ export class GetPaymentHistoryDto extends PaginatedDto {
       'method must be one of the following values: CASH, CARD, UPI, ONLINE',
   })
   method?: PaymentMethod;
+
+  // ✅ Fixed version (with lowercase transformer)
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @IsEnum(PaymentType, {
+    message:
+      'type must be one of the following values: membership, addon, expense',
+  })
+  type?: PaymentType;
 }

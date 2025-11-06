@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod, Prisma } from '@prisma/client';
-import { PaginatedDto } from '../common/dto/paginated.dto';
+// import { PaginatedDto } from '../common/dto/paginated.dto';
+import { GetPaymentHistoryDto } from './dto/get-payment-history.dto';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -23,7 +24,7 @@ export class PaymentsService {
 
   async findAllPaginated(
     userId: number,
-    query: PaginatedDto,
+    query: GetPaymentHistoryDto,
   ): Promise<PaginatedResult<any>> {
     const {
       page = 1,
@@ -53,6 +54,13 @@ export class PaymentsService {
           }
         : {}),
     };
+
+    // Filter by type
+    if (query.type) {
+      if (query.type === 'membership') where.membershipId = { not: null };
+      else if (query.type === 'addon') where.memberAddonId = { not: null };
+      else if (query.type === 'expense') where.expenseId = { not: null };
+    }
 
     // ───────────────────────────────
     // Search filter
