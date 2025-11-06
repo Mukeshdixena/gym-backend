@@ -10,7 +10,7 @@ import {
 import { PaymentMethod } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
-// ✅ Proper enum
+// Proper enum
 export enum PaymentType {
   MEMBERSHIP = 'membership',
   ADDON = 'addon',
@@ -22,25 +22,27 @@ export class GetPaymentHistoryDto extends PaginatedDto {
   @IsString()
   search?: string;
 
-  @ValidateIf((o) => o.startDate !== '')
+  @ValidateIf((o) => o.startDate !== '' && o.startDate != null)
   @IsISO8601({}, { message: 'startDate must be a valid ISO 8601 date string' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   startDate?: string;
 
-  @ValidateIf((o) => o.endDate !== '')
+  @ValidateIf((o) => o.endDate !== '' && o.endDate != null)
   @IsISO8601({}, { message: 'endDate must be a valid ISO 8601 date string' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   endDate?: string;
 
-  @ValidateIf((o) => o.method !== '')
+  @ValidateIf((o) => o.method !== '' && o.method != null)
   @IsEnum(PaymentMethod, {
     message:
       'method must be one of the following values: CASH, CARD, UPI, ONLINE',
   })
   method?: PaymentMethod;
 
-  // ✅ Fixed version (with lowercase transformer)
   @IsOptional()
+  @ValidateIf((o) => o.type !== '' && o.type != null)
   @Transform(({ value }) =>
-    typeof value === 'string' ? value.toLowerCase() : value,
+    typeof value === 'string' ? value.toLowerCase().trim() : value,
   )
   @IsEnum(PaymentType, {
     message:
