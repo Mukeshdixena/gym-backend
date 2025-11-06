@@ -15,6 +15,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AddonsModule } from './addons/addons.module';
 import { MemberAddonsModule } from './member-addons/member-addons.module';
+import { ExpenseModule } from './expense/expense.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { MemberAddonsModule } from './member-addons/member-addons.module';
     AdminUsersModule,
     AddonsModule,
     MemberAddonsModule,
+    ExpenseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
