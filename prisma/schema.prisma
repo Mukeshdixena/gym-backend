@@ -144,7 +144,7 @@ model Expense {
   paid        Float?        @default(0) // ✅ total paid amount
   pending     Float?        @default(0) // ✅ remaining amount
   status      ExpenseStatus @default(PENDING) // ✅ track payment progress
-  payments    Payment[]     @relation("ExpensePayments")
+  payments    Payment[]
   expenseDate DateTime      @default(now())
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -160,7 +160,7 @@ model Payment {
   membershipId  Int?
   memberAddon   MemberAddon?  @relation(fields: [memberAddonId], references: [id])
   memberAddonId Int?
-  expense       Expense?      @relation("ExpensePayments", fields: [expenseId], references: [id])
+  expense       Expense?      @relation(fields: [expenseId], references: [id])
   expenseId     Int?
   amount        Float
   paymentDate   DateTime      @default(now())

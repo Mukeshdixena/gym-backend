@@ -1,4 +1,3 @@
-// src/payments/payments.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -22,7 +21,6 @@ export interface PaginatedResult<T> {
 export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
-  // src/payments/payments.service.ts (UPDATED)
   async findAllPaginated(
     userId: number,
     query: PaginatedDto,
@@ -41,7 +39,9 @@ export class PaymentsService {
     const field = validSortFields.includes(sortBy) ? sortBy : 'paymentDate';
     const order = sortOrder.toLowerCase() as Prisma.SortOrder;
 
-    // Build base where
+    // ───────────────────────────────
+    // Base WHERE filter
+    // ───────────────────────────────
     const where: Prisma.PaymentWhereInput = {
       userId,
       ...(minPrice !== undefined || maxPrice !== undefined
@@ -54,7 +54,9 @@ export class PaymentsService {
         : {}),
     };
 
-    // Add search (only string-compatible fields)
+    // ───────────────────────────────
+    // Search filter
+    // ───────────────────────────────
     if (search) {
       where.OR = [
         {
@@ -77,9 +79,21 @@ export class PaymentsService {
             },
           },
         },
+        {
+          expense: {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' } },
+              { category: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+        },
       ];
     }
 
+    // ───────────────────────────────
+    // Query + Count
+    // ───────────────────────────────
     const [data, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({
         where,
@@ -94,12 +108,7 @@ export class PaymentsService {
                   email: true,
                 },
               },
-              plan: {
-                select: {
-                  name: true,
-                  price: true,
-                },
-              },
+              plan: { select: { name: true, price: true } },
             },
           },
           memberAddon: {
@@ -112,19 +121,20 @@ export class PaymentsService {
                   email: true,
                 },
               },
-              addon: {
-                select: {
-                  name: true,
-                  price: true,
-                },
-              },
+              addon: { select: { name: true, price: true } },
               trainer: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                },
+                select: { id: true, firstName: true, lastName: true },
               },
+            },
+          },
+          expense: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              amount: true,
+              paid: true,
+              pending: true,
             },
           },
         },
@@ -135,11 +145,17 @@ export class PaymentsService {
       this.prisma.payment.count({ where }),
     ]);
 
+    // ───────────────────────────────
+    // Format results
+    // ───────────────────────────────
     const formattedData = data.map((p) => {
       const membership = p.membership;
       const memberAddon = p.memberAddon;
+      const expense = p.expense;
 
-      const member = membership?.member || memberAddon?.member;
+      // Shared info
+      const member = membership?.member || memberAddon?.member || null;
+
       const memberInfo = member
         ? {
             id: member.id,
@@ -159,7 +175,9 @@ export class PaymentsService {
           plan: membership.plan?.name ?? null,
           membershipId: p.membershipId,
           addonId: null,
+          expenseId: null,
           addonName: null,
+          expenseTitle: null,
           trainer: null,
         };
       }
@@ -175,7 +193,9 @@ export class PaymentsService {
           plan: null,
           membershipId: null,
           addonId: p.memberAddonId,
+          expenseId: null,
           addonName: memberAddon.addon?.name ?? null,
+          expenseTitle: null,
           trainer: memberAddon.trainer
             ? {
                 id: memberAddon.trainer.id,
@@ -185,6 +205,28 @@ export class PaymentsService {
         };
       }
 
+      if (expense) {
+        return {
+          id: p.id,
+          amount: p.amount,
+          paymentDate: p.paymentDate,
+          method: p.method,
+          type: 'expense' as const,
+          expenseId: p.expenseId,
+          expenseTitle: expense.title,
+          category: expense.category,
+          expenseAmount: expense.amount,
+          paid: expense.paid,
+          pending: expense.pending,
+          member: null,
+          plan: null,
+          addonId: null,
+          addonName: null,
+          trainer: null,
+        };
+      }
+
+      // fallback
       return {
         id: p.id,
         amount: p.amount,
@@ -195,6 +237,8 @@ export class PaymentsService {
         plan: null,
         membershipId: null,
         addonId: null,
+        expenseId: null,
+        expenseTitle: null,
         addonName: null,
         trainer: null,
       };
