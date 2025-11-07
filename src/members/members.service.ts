@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Member, Prisma } from '@prisma/client';
+import { Member, MembershipStatus, Prisma } from '@prisma/client';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { PaginatedDto } from '../common/dto/paginated.dto';
+// import { PaginatedDto } from '../common/dto/paginated.dto';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -63,14 +63,32 @@ export class MembersService {
   }
 
   // PAGINATED LIST
+  // import { Prisma, MembershipStatus } from '@prisma/client';
+
   async findAllPaginated(
     userId: number,
-    query: PaginatedDto,
+    query: {
+      page?: number;
+      limit?: number;
+      id?: string;
+      name?: string;
+      email?: string;
+      phone?: string;
+      plan?: string;
+      status?: string;
+      sortBy?: string;
+      sortOrder?: 'ASC' | 'DESC';
+    },
   ): Promise<PaginatedResult<Member>> {
     const {
       page = 1,
       limit = 10,
-      search,
+      id,
+      name,
+      email,
+      phone,
+      plan,
+      status,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
     } = query;
@@ -79,15 +97,35 @@ export class MembersService {
     const field = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     const order = sortOrder.toLowerCase() as Prisma.SortOrder;
 
+    const parsedStatus =
+      status &&
+      Object.values(MembershipStatus).includes(status as MembershipStatus)
+        ? (status as MembershipStatus)
+        : undefined;
+
     const where: Prisma.MemberWhereInput = {
       userId,
-      ...(search && {
+      ...(id && { id: Number(id) }),
+      ...(name && {
         OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } },
+          { firstName: { contains: name, mode: 'insensitive' } },
+          { lastName: { contains: name, mode: 'insensitive' } },
         ],
+      }),
+      ...(email && { email: { contains: email, mode: 'insensitive' } }),
+      ...(phone && { phone: { contains: phone, mode: 'insensitive' } }),
+
+      ...(plan && {
+        memberships: {
+          some: { plan: { name: { contains: plan, mode: 'insensitive' } } },
+        },
+      }),
+
+      // ✅ Use parsedStatus enum, not plain string
+      ...(parsedStatus && {
+        memberships: {
+          some: { status: { equals: parsedStatus } },
+        },
       }),
     };
 
@@ -99,8 +137,8 @@ export class MembersService {
           memberAddons: { include: { addon: true } },
         },
         orderBy: { [field]: order },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
       }),
       this.prisma.member.count({ where }),
     ]);
@@ -109,9 +147,9 @@ export class MembersService {
       data,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
       },
     };
   }

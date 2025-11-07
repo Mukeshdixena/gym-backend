@@ -50,7 +50,22 @@ export class MembersController {
 
   // PAGINATED LIST
   @Get()
-  async findAll(@Req() req: AuthRequest, @Query() query: PaginatedDto) {
+  async findAll(
+    @Req() req: AuthRequest,
+    @Query()
+    query: {
+      page?: number;
+      limit?: number;
+      id?: string;
+      name?: string;
+      email?: string;
+      phone?: string;
+      plan?: string;
+      status?: string;
+      sortBy?: string;
+      sortOrder?: 'ASC' | 'DESC';
+    },
+  ) {
     const result = await this.membersService.findAllPaginated(
       req.user.id,
       query,
