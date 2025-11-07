@@ -12,6 +12,7 @@ import {
   UseGuards,
   UsePipes,
   ValidationPipe,
+  Query,
 } from '@nestjs/common';
 import { ExpensesService } from './expense.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -46,8 +47,30 @@ export class ExpensesController {
      GET ALL EXPENSES
   ─────────────────────────────── */
   @Get()
-  async findAll(@Req() req: AuthRequest) {
-    return this.expensesService.findAll(req.user.id);
+  async findAll(
+    @Req() req: AuthRequest,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+    @Query('id') id?: string,
+    @Query('title') title?: string,
+    @Query('category') category?: string,
+    @Query('amount') amount?: string, // treated as MIN amount
+    @Query('status') status?: 'PENDING' | 'PARTIAL_PAID' | 'PAID',
+    @Query('date') date?: string, // YYYY-MM-DD
+  ) {
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    if (isNaN(pageNum) || pageNum < 1)
+      throw new BadRequestException('Invalid page');
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100)
+      throw new BadRequestException('Limit must be 1–100');
+
+    return this.expensesService.findAll({
+      userId: req.user.id,
+      filters: { id, title, category, amount, status, date },
+      pagination: { page: pageNum, limit: limitNum },
+    });
   }
 
   /* ───────────────────────────────

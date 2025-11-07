@@ -88,47 +88,30 @@ export class AddonsService {
   // ──────────────────────────────────────────────────────────────
   async findAllPaginated(
     userId: number,
-    query: PaginatedDto,
+    query: any,
   ): Promise<PaginatedResult<any>> {
     const {
+      id,
+      name,
+      status,
       page = 1,
       limit = 10,
-      search,
-      isActive,
-      minPrice,
-      maxPrice,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
     } = query;
 
     const where: Prisma.AddonWhereInput = {
       userId,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
-      ...(isActive !== '' && { isActive: isActive === 'true' }),
-      ...(minPrice !== undefined || maxPrice !== undefined
-        ? {
-            price: {
-              gte: minPrice,
-              lte: maxPrice,
-            },
-          }
-        : {}),
+      ...(id && { id: Number(id) }),
+      ...(name && { name: { contains: name, mode: 'insensitive' } }),
+      ...(status !== '' &&
+        status !== undefined && { isActive: status === 'true' }),
     };
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.addon.findMany({
         where,
-        include: {
-          memberAddons: { include: { member: true, trainer: true } },
-        },
-        orderBy: {
-          [sortBy]: sortOrder.toLowerCase() as Prisma.SortOrder,
-        },
+        orderBy: { [sortBy]: sortOrder.toLowerCase() as Prisma.SortOrder },
         skip: (page - 1) * limit,
         take: limit,
       }),

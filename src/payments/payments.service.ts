@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
 import { GetPaymentHistoryDto } from './dto/get-payment-history.dto';
 
 @Injectable()
@@ -9,7 +9,18 @@ export class PaymentsService {
 
   async findAllPaginated(
     userId: number,
-    query: GetPaymentHistoryDto,
+    query: {
+      page?: string;
+      limit?: string;
+      memberSearch?: string;
+      expenseSearch?: string;
+      startDate?: string;
+      endDate?: string;
+      method?: string;
+      type?: string;
+      amount?: string;
+      date?: string;
+    },
   ): Promise<{
     data: any[];
     meta: {
@@ -19,83 +30,123 @@ export class PaymentsService {
       totalPages: number;
     };
   }> {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      sortBy = 'paymentDate',
-      sortOrder = 'DESC',
-      minPrice,
-      maxPrice,
-      type,
-    } = query;
+    // Parse pagination
+    const page = Math.max(1, parseInt(query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit || '10', 10)));
 
-    // Validation
-    if (page < 1 || limit < 1) {
-      throw new BadRequestException('page and limit must be positive');
+    if (isNaN(page) || isNaN(limit)) {
+      throw new BadRequestException('Invalid page or limit');
     }
 
-    const validSortFields = ['paymentDate', 'amount', 'method', 'createdAt'];
-    const field = validSortFields.includes(sortBy) ? sortBy : 'paymentDate';
-    const order = sortOrder.toUpperCase() === 'ASC' ? 'asc' : 'desc';
+    // Parse amount
+    const amountFilter = query.amount ? parseFloat(query.amount) : undefined;
+    if (query.amount && isNaN(amountFilter!)) {
+      throw new BadRequestException('Amount must be a valid number');
+    }
 
-    // Base WHERE
-    const where: Prisma.PaymentWhereInput = {
-      userId,
-      ...(minPrice !== undefined || maxPrice !== undefined
-        ? {
-            amount: {
-              ...(minPrice !== undefined ? { gte: minPrice } : {}),
-              ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
-            },
-          }
-        : {}),
-    };
+    // Build WHERE
+    const where: Prisma.PaymentWhereInput = { userId };
+
+    // Date range filter
+    if (query.startDate || query.endDate) {
+      where.paymentDate = {
+        ...(query.startDate && { gte: new Date(query.startDate) }),
+        ...(query.endDate && { lte: new Date(query.endDate) }),
+      };
+    }
+
+    // Exact date filter
+    if (query.date) {
+      const date = new Date(query.date);
+      if (isNaN(date.getTime())) throw new BadRequestException('Invalid date');
+      const start = new Date(date.setHours(0, 0, 0, 0));
+      const end = new Date(date.setHours(23, 59, 59, 999));
+      where.paymentDate = { gte: start, lte: end };
+    }
+
+    // Method filter
+    if (query.method) {
+      const methodUpper = query.method.toUpperCase();
+
+      // Validate against actual enum values
+      if (
+        !Object.values(PaymentMethod).includes(methodUpper as PaymentMethod)
+      ) {
+        throw new BadRequestException(
+          `Invalid payment method: '${query.method}'. ` +
+            `Must be one of: ${Object.values(PaymentMethod).join(', ')}`,
+        );
+      }
+
+      // Safe: TypeScript now knows it's a valid enum value
+      where.method = { equals: methodUpper as PaymentMethod };
+    }
+    // Amount filter
+    if (amountFilter !== undefined) {
+      where.amount = amountFilter;
+    }
 
     // Type filter
-    if (type) {
-      if (type === 'membership') where.membershipId = { not: null };
-      else if (type === 'addon') where.memberAddonId = { not: null };
-      else if (type === 'expense') where.expenseId = { not: null };
-      else throw new BadRequestException(`Invalid type: ${type}`);
+    if (query.type) {
+      if (query.type === 'membership') where.membershipId = { not: null };
+      else if (query.type === 'addon') where.memberAddonId = { not: null };
+      else if (query.type === 'expense') where.expenseId = { not: null };
+      else throw new BadRequestException(`Invalid type: ${query.type}`);
     }
 
-    // Search filter
-    if (search) {
-      where.OR = [
-        {
-          membership: {
-            member: {
-              OR: [
-                { firstName: { contains: search, mode: 'insensitive' } },
-                { lastName: { contains: search, mode: 'insensitive' } },
-              ],
+    // === SEARCH FILTERS ===
+    const andConditions: Prisma.PaymentWhereInput[] = [];
+
+    // Member search (applies to membership & addon)
+    if (query.memberSearch?.trim()) {
+      const term = query.memberSearch.trim();
+      andConditions.push({
+        OR: [
+          {
+            membership: {
+              member: {
+                OR: [
+                  { firstName: { contains: term, mode: 'insensitive' } },
+                  { lastName: { contains: term, mode: 'insensitive' } },
+                  { email: { contains: term, mode: 'insensitive' } },
+                ],
+              },
             },
           },
-        },
-        {
-          memberAddon: {
-            member: {
-              OR: [
-                { firstName: { contains: search, mode: 'insensitive' } },
-                { lastName: { contains: search, mode: 'insensitive' } },
-              ],
+          {
+            memberAddon: {
+              member: {
+                OR: [
+                  { firstName: { contains: term, mode: 'insensitive' } },
+                  { lastName: { contains: term, mode: 'insensitive' } },
+                  { email: { contains: term, mode: 'insensitive' } },
+                ],
+              },
             },
           },
-        },
-        {
-          expense: {
-            OR: [
-              { title: { contains: search, mode: 'insensitive' } },
-              { category: { contains: search, mode: 'insensitive' } },
-              { description: { contains: search, mode: 'insensitive' } },
-            ],
-          },
-        },
-      ];
+        ],
+      });
     }
 
-    // Fetch raw data with includes
+    // Expense search
+    if (query.expenseSearch?.trim()) {
+      const term = query.expenseSearch.trim();
+      andConditions.push({
+        expense: {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { category: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    // Apply AND conditions only if any exist
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    // === QUERY EXECUTION ===
     const [data, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({
         where,
@@ -140,7 +191,7 @@ export class PaymentsService {
             },
           },
         },
-        orderBy: { [field]: order },
+        orderBy: { paymentDate: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -148,7 +199,7 @@ export class PaymentsService {
     ]);
 
     return {
-      data, // ← Raw Prisma objects, no transformation
+      data,
       meta: {
         total,
         page,

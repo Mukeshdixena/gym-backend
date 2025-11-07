@@ -44,11 +44,26 @@ export class AddonsController {
 
   // ────────────── PAGINATED FETCH ──────────────
   @Get()
-  async findAll(@Req() req: AuthRequest, @Query() query: PaginatedDto) {
-    const result = await this.addonsService.findAllPaginated(
-      req.user.id,
-      query,
-    );
+  async findAll(
+    @Req() req: AuthRequest,
+    @Query('id') id?: string,
+    @Query('name') name?: string,
+    @Query('status') status?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('sortBy') sortBy: string = 'createdAt',
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
+    const result = await this.addonsService.findAllPaginated(req.user.id, {
+      id,
+      name,
+      status,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    });
+
     return {
       success: true,
       message: 'Addons fetched successfully',

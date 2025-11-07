@@ -8,7 +8,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { Prisma, PaymentMethod } from '@prisma/client';
-
+interface FindAllFilters {
+  id?: string;
+  title?: string;
+  category?: string;
+  amount?: string; // min amount
+  status?: 'PENDING' | 'PARTIAL_PAID' | 'PAID';
+  date?: string; // YYYY-MM-DD
+}
+interface FindAllOptions {
+  userId: number;
+  filters: FindAllFilters;
+  pagination: { page: number; limit: number };
+}
 @Injectable()
 export class ExpensesService {
   constructor(private prisma: PrismaService) {}
@@ -47,14 +59,70 @@ export class ExpensesService {
   /* ───────────────────────────────
      READ EXPENSES
   ─────────────────────────────── */
-  async findAll(userId: number) {
-    return this.prisma.expense.findMany({
-      where: { userId },
-      orderBy: { expenseDate: 'desc' },
-      include: { payments: true },
-    });
-  }
+  async findAll({ userId, filters, pagination }: FindAllOptions) {
+    const { page, limit } = pagination;
+    const skip = (page - 1) * limit;
 
+    const where: any = { userId };
+
+    // Text search (case-insensitive partial match)
+    if (filters.id) where.id = parseInt(filters.id, 10);
+    if (filters.title)
+      where.title = { contains: filters.title, mode: 'insensitive' };
+    if (filters.category)
+      where.category = { contains: filters.category, mode: 'insensitive' };
+    if (filters.status) where.status = filters.status;
+
+    // Date filter (exact date match)
+    if (filters.date) {
+      where.expenseDate = {
+        gte: new Date(filters.date),
+        lt: new Date(new Date(filters.date).getTime() + 24 * 60 * 60 * 1000),
+      };
+    }
+
+    // Amount: treat as MIN amount
+    if (filters.amount) {
+      const minAmount = parseFloat(filters.amount);
+      if (!isNaN(minAmount)) {
+        where.amount = { gte: minAmount };
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.expense.findMany({
+        where,
+        include: { payments: { orderBy: { paymentDate: 'desc' } } },
+        orderBy: { expenseDate: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.expense.count({ where }),
+    ]);
+
+    // Compute paid/pending on the fly (in case DB doesn't store them)
+    const enriched = data.map((exp) => {
+      const paid = exp.payments.reduce((sum, p) => sum + p.amount, 0);
+      const pending = Math.max(exp.amount - paid, 0);
+      return {
+        ...exp,
+        paid,
+        pending,
+        status:
+          paid === 0 ? 'PENDING' : paid >= exp.amount ? 'PAID' : 'PARTIAL_PAID',
+      };
+    });
+
+    return {
+      data: enriched,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
   async findOne(id: number, userId: number) {
     const expense = await this.prisma.expense.findFirst({
       where: { id, userId },
