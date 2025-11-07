@@ -86,62 +86,85 @@ export class PlansService {
   // ──────────────────────────────────────────────────────────────
   // PAGINATED LIST (with filters, search, sort)
   // ──────────────────────────────────────────────────────────────
+
   async findAllPaginated(
     userId: number,
-    query: PaginatedDto,
-  ): Promise<PaginatedResult<Plan>> {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      isActive,
-      minPrice,
-      maxPrice,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC',
-    } = query;
-
-    const validSortFields = ['name', 'price', 'durationDays', 'createdAt'];
-    const field = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-    const order = sortOrder.toLowerCase() as Prisma.SortOrder;
-
-    const where: Prisma.PlanWhereInput = {
-      userId,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
-      ...(isActive !== '' && { isActive: isActive === 'true' }),
-      ...(minPrice !== undefined || maxPrice !== undefined
-        ? {
-            price: {
-              gte: minPrice,
-              lte: maxPrice,
-            },
-          }
-        : {}),
+    filters: {
+      id?: string;
+      name?: string;
+      price?: string;
+      duration?: string;
+      status?: string;
+      page: number;
+      limit: number;
+    },
+  ): Promise<{
+    data: Plan[];
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
     };
+  }> {
+    const { id, name, price, duration, status, page = 1, limit = 10 } = filters;
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.plan.findMany({
-        where,
-        include: { memberships: true },
-        orderBy: { [field]: order },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.plan.count({ where }),
-    ]);
+    const skip = (page - 1) * limit;
+
+    const where: any = { userId };
+
+    // Filter by ID
+    if (id) {
+      where.id = parseInt(id, 10);
+    }
+
+    // Filter by name (contains)
+    if (name) {
+      where.name = { contains: name, mode: 'insensitive' };
+    }
+
+    // Filter by price (min price)
+    if (price) {
+      const minPrice = parseFloat(price);
+      if (!isNaN(minPrice)) {
+        where.price = { gte: minPrice };
+      }
+    }
+
+    // Filter by duration (min days)
+    if (duration) {
+      const minDays = parseFloat(duration);
+      if (!isNaN(minDays)) {
+        where.durationDays = { gte: minDays };
+      }
+    }
+
+    // Filter by status
+    if (status !== undefined && status !== '') {
+      where.isActive = status === 'true';
+    }
+
+    // Count total
+    const total = await this.prisma.plan.count({ where });
+
+    // Fetch plans
+    const plans = await this.prisma.plan.findMany({
+      where,
+      include: { memberships: true },
+      orderBy: { createdAt: 'desc' }, // default sort
+      skip,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
 
     return {
-      data,
+      data: plans,
       meta: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
       },
     };
   }

@@ -38,18 +38,28 @@ export class PlansController {
 
   // ──────── PAGINATED GET ALL ────────
   @Get()
-  @ApiOperation({ summary: 'Get all plans (paginated, filtered, sorted)' })
-  async findAll(@Req() req: any, @Query() query: PaginatedDto) {
+  async findAll(
+    @Req() req: any,
+    @Query('id') id?: string,
+    @Query('name') name?: string,
+    @Query('price') price?: string,
+    @Query('duration') duration?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const userId = req.user?.id;
     if (!userId) throw new BadRequestException('User not authenticated');
 
-    const result = await this.plansService.findAllPaginated(userId, query);
-    return {
-      success: true,
-      message: 'Plans fetched successfully',
-      data: result.data,
-      meta: result.meta,
-    };
+    return this.plansService.findAllPaginated(userId, {
+      id,
+      name,
+      price,
+      duration,
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
   }
   @Get('list-all')
   @ApiOperation({
