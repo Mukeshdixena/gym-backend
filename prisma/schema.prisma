@@ -32,8 +32,8 @@ model Member {
   userId         Int
   firstName      String
   lastName       String
-  email          String
   phone          String
+  email          String?
   address        String?
   gender         String?
   referralSource String?

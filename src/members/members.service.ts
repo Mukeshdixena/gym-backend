@@ -8,7 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Member, MembershipStatus, Prisma } from '@prisma/client';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-// import { PaginatedDto } from '../common/dto/paginated.dto';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -26,16 +25,20 @@ export class MembersService {
 
   // CREATE
   async create(data: CreateMemberDto, userId: number): Promise<Member> {
-    const email = data.email.toLowerCase().trim();
+    const email = data.email ? data.email.toLowerCase().trim() : null;
     const phone = data.phone.trim();
 
+    // Build OR conditions only for provided fields
+    const orConditions: Prisma.MemberWhereInput['OR'] = [{ phone }];
+    if (email) orConditions.push({ email });
+
     const existingMember = await this.prisma.member.findFirst({
-      where: { userId, OR: [{ email }, { phone }] },
+      where: { userId, OR: orConditions },
       select: { id: true, email: true, phone: true },
     });
 
     if (existingMember) {
-      if (existingMember.email === email) {
+      if (email && existingMember.email === email) {
         throw new BadRequestException(
           'A member with this email already exists.',
         );
@@ -51,8 +54,8 @@ export class MembersService {
       data: {
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
-        email,
         phone,
+        ...(email && { email }), // Only include if truthy
         address: data.address?.trim(),
         gender: data.gender?.trim(),
         referralSource: data.referralSource?.trim(),
@@ -63,8 +66,6 @@ export class MembersService {
   }
 
   // PAGINATED LIST
-  // import { Prisma, MembershipStatus } from '@prisma/client';
-
   async findAllPaginated(
     userId: number,
     query: {
@@ -114,14 +115,11 @@ export class MembersService {
       }),
       ...(email && { email: { contains: email, mode: 'insensitive' } }),
       ...(phone && { phone: { contains: phone, mode: 'insensitive' } }),
-
       ...(plan && {
         memberships: {
           some: { plan: { name: { contains: plan, mode: 'insensitive' } } },
         },
       }),
-
-      // ✅ Use parsedStatus enum, not plain string
       ...(parsedStatus && {
         memberships: {
           some: { status: { equals: parsedStatus } },
@@ -180,28 +178,45 @@ export class MembersService {
     if (!existing)
       throw new NotFoundException(`Member with ID ${id} not found.`);
 
-    const updateEmail = data.email?.toLowerCase().trim();
+    // Normalize values only if provided
+    const updateEmail =
+      data.email !== undefined ? data.email.toLowerCase().trim() : null;
     const updatePhone = data.phone?.trim();
 
-    if (updateEmail || updatePhone) {
+    const isUpdatingEmail = data.email !== undefined;
+    const isUpdatingPhone = data.phone !== undefined;
+
+    // Only run conflict check if at least one field is being updated
+    if (isUpdatingEmail || isUpdatingPhone) {
       const orConditions: Prisma.MemberWhereInput['OR'] = [];
-      if (updateEmail) orConditions.push({ email: updateEmail });
-      if (updatePhone) orConditions.push({ phone: updatePhone });
 
-      const conflicting = await this.prisma.member.findFirst({
-        where: { userId, id: { not: id }, OR: orConditions },
-      });
+      if (isUpdatingEmail && updateEmail !== null && updateEmail !== '') {
+        orConditions.push({ email: updateEmail });
+      }
+      if (isUpdatingPhone && updatePhone) {
+        orConditions.push({ phone: updatePhone });
+      }
 
-      if (conflicting) {
-        if (updateEmail && conflicting.email === updateEmail) {
-          throw new BadRequestException(
-            'Another member already uses this email.',
-          );
-        }
-        if (updatePhone && conflicting.phone === updatePhone) {
-          throw new BadRequestException(
-            'Another member already uses this phone number.',
-          );
+      if (orConditions.length > 0) {
+        const conflicting = await this.prisma.member.findFirst({
+          where: { userId, id: { not: id }, OR: orConditions },
+        });
+
+        if (conflicting) {
+          if (
+            isUpdatingEmail &&
+            updateEmail !== null &&
+            conflicting.email === updateEmail
+          ) {
+            throw new BadRequestException(
+              'Another member already uses this email.',
+            );
+          }
+          if (isUpdatingPhone && conflicting.phone === updatePhone) {
+            throw new BadRequestException(
+              'Another member already uses this phone number.',
+            );
+          }
         }
       }
     }
@@ -209,15 +224,17 @@ export class MembersService {
     const cleanData: Prisma.MemberUpdateInput = {
       ...(data.firstName && { firstName: data.firstName.trim() }),
       ...(data.lastName && { lastName: data.lastName.trim() }),
-      ...(updateEmail && { email: updateEmail }),
-      ...(updatePhone && { phone: updatePhone }),
+      ...(isUpdatingEmail &&
+        updateEmail !== null &&
+        updateEmail !== '' && { email: updateEmail }),
+      ...(isUpdatingPhone && updatePhone && { phone: updatePhone }),
       ...(data.address !== undefined && { address: data.address?.trim() }),
       ...(data.gender !== undefined && { gender: data.gender?.trim() }),
       ...(data.referralSource !== undefined && {
         referralSource: data.referralSource?.trim(),
       }),
       ...(data.notes !== undefined && { notes: data.notes?.trim() }),
-      updatedAt: new Date(),
+      // @updatedAt in schema → no need to set manually
     };
 
     return this.prisma.member.update({

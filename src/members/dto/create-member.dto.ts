@@ -9,8 +9,9 @@ export class CreateMemberDto {
   @Length(2, 50)
   lastName!: string;
 
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
   @IsString()
   @Length(10, 15)
