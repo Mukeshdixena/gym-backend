@@ -114,7 +114,7 @@ export class ExpensesService {
     });
 
     return {
-      data: enriched,
+      data: data,
       meta: {
         total,
         page,
