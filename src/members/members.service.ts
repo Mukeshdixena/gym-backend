@@ -25,7 +25,10 @@ export class MembersService {
 
   // CREATE
   async create(data: CreateMemberDto, userId: number): Promise<Member> {
-    const email = data.email ? data.email.toLowerCase().trim() : null;
+    // const email = data.email ? data.email.toLowerCase().trim() : null;
+    const emailInput = data.email?.trim();
+    const email =
+      emailInput && emailInput !== '' ? emailInput.toLowerCase() : null;
     const phone = data.phone.trim();
 
     // Build OR conditions only for provided fields
@@ -73,7 +76,7 @@ export class MembersService {
       limit?: number;
       id?: string;
       name?: string;
-      email?: string;
+      gender?: string; // <-- New: gender filter
       phone?: string;
       plan?: string;
       status?: string;
@@ -86,7 +89,7 @@ export class MembersService {
       limit = 10,
       id,
       name,
-      email,
+      gender, // <-- Extract gender
       phone,
       plan,
       status,
@@ -94,7 +97,7 @@ export class MembersService {
       sortOrder = 'DESC',
     } = query;
 
-    const validSortFields = ['firstName', 'lastName', 'email', 'createdAt'];
+    const validSortFields = ['firstName', 'lastName', 'createdAt', 'gender']; // Optional: allow sort by gender
     const field = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     const order = sortOrder.toLowerCase() as Prisma.SortOrder;
 
@@ -113,7 +116,7 @@ export class MembersService {
           { lastName: { contains: name, mode: 'insensitive' } },
         ],
       }),
-      ...(email && { email: { contains: email, mode: 'insensitive' } }),
+      ...(gender && { gender: { equals: gender, mode: 'insensitive' } }), // <-- Gender filter
       ...(phone && { phone: { contains: phone, mode: 'insensitive' } }),
       ...(plan && {
         memberships: {
@@ -179,9 +182,17 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found.`);
 
     // Normalize values only if provided
-    const updateEmail =
-      data.email !== undefined ? data.email.toLowerCase().trim() : null;
+    // const updateEmail =
+    //   data.email !== undefined ? data.email.toLowerCase().trim() : null;
     const updatePhone = data.phone?.trim();
+
+    const emailInput = data.email?.trim();
+    const updateEmail =
+      data.email !== undefined
+        ? emailInput && emailInput !== ''
+          ? emailInput.toLowerCase()
+          : null
+        : undefined;
 
     const isUpdatingEmail = data.email !== undefined;
     const isUpdatingPhone = data.phone !== undefined;

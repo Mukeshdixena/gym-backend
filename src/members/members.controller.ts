@@ -22,7 +22,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { Request } from 'express';
-import { PaginatedDto } from '../common/dto/paginated.dto';
+// import { PaginatedDto } from '../common/dto/paginated.dto';
 
 interface AuthRequest extends Request {
   user: { id: number };
@@ -58,7 +58,7 @@ export class MembersController {
       limit?: number;
       id?: string;
       name?: string;
-      email?: string;
+      gender?: string; // <-- Replace email with gender
       phone?: string;
       plan?: string;
       status?: string;
