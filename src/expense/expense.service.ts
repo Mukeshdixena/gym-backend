@@ -77,20 +77,18 @@ export class ExpensesService {
     if (filters.date) {
       const [from, to] = filters.date.split('_');
       if (from && to) {
-        // date range e.g. "2025-11-01_2025-11-08"
         where.expenseDate = {
           gte: new Date(from),
-          lt: new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000), // include the full "to" day
+          lt: new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000),
         };
       } else if (from) {
-        // single date fallback
         where.expenseDate = {
           gte: new Date(from),
           lt: new Date(new Date(from).getTime() + 24 * 60 * 60 * 1000),
         };
       }
     }
-    // Amount: treat as MIN amount
+
     if (filters.amount) {
       const minAmount = parseFloat(filters.amount);
       if (!isNaN(minAmount)) {
@@ -98,7 +96,8 @@ export class ExpensesService {
       }
     }
 
-    const [data, total] = await Promise.all([
+    // === Parallel Queries: Data + Count + Aggregates ===
+    const [data, total, aggregates] = await Promise.all([
       this.prisma.expense.findMany({
         where,
         include: { payments: { orderBy: { paymentDate: 'desc' } } },
@@ -107,18 +106,39 @@ export class ExpensesService {
         take: limit,
       }),
       this.prisma.expense.count({ where }),
+
+      // Aggregate sum of amount, paid, and pending
+      this.prisma.expense.aggregate({
+        where,
+        _sum: {
+          amount: true,
+          paid: true,
+          pending: true,
+        },
+      }),
     ]);
 
+    // === Build Response ===
+    const totalAmount = aggregates._sum.amount ?? 0;
+    const totalPaid = aggregates._sum.paid ?? 0;
+    const totalPending = aggregates._sum.pending ?? 0;
+
     return {
-      data: data,
+      data,
       meta: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
+      summary: {
+        totalAmount: Number(totalAmount.toFixed(2)),
+        totalPaid: Number(totalPaid.toFixed(2)),
+        totalPending: Number(totalPending.toFixed(2)),
+      },
     };
   }
+
   async findOne(id: number, userId: number) {
     const expense = await this.prisma.expense.findFirst({
       where: { id, userId },
