@@ -75,12 +75,21 @@ export class ExpensesService {
 
     // Date filter (exact date match)
     if (filters.date) {
-      where.expenseDate = {
-        gte: new Date(filters.date),
-        lt: new Date(new Date(filters.date).getTime() + 24 * 60 * 60 * 1000),
-      };
+      const [from, to] = filters.date.split('_');
+      if (from && to) {
+        // date range e.g. "2025-11-01_2025-11-08"
+        where.expenseDate = {
+          gte: new Date(from),
+          lt: new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000), // include the full "to" day
+        };
+      } else if (from) {
+        // single date fallback
+        where.expenseDate = {
+          gte: new Date(from),
+          lt: new Date(new Date(from).getTime() + 24 * 60 * 60 * 1000),
+        };
+      }
     }
-
     // Amount: treat as MIN amount
     if (filters.amount) {
       const minAmount = parseFloat(filters.amount);
@@ -99,19 +108,6 @@ export class ExpensesService {
       }),
       this.prisma.expense.count({ where }),
     ]);
-
-    // Compute paid/pending on the fly (in case DB doesn't store them)
-    const enriched = data.map((exp) => {
-      const paid = exp.payments.reduce((sum, p) => sum + p.amount, 0);
-      const pending = Math.max(exp.amount - paid, 0);
-      return {
-        ...exp,
-        paid,
-        pending,
-        status:
-          paid === 0 ? 'PENDING' : paid >= exp.amount ? 'PAID' : 'PARTIAL_PAID',
-      };
-    });
 
     return {
       data: data,
