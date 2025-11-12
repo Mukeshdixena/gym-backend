@@ -123,7 +123,7 @@ export class ExpensesService {
     const totalPaid = aggregates._sum.paid ?? 0;
     const totalPending = aggregates._sum.pending ?? 0;
 
-    return {
+    const result = {
       data,
       meta: {
         total,
@@ -137,6 +137,10 @@ export class ExpensesService {
         totalPending: Number(totalPending.toFixed(2)),
       },
     };
+
+    console.log('FindAll Result:', result);
+
+    return result;
   }
 
   async findOne(id: number, userId: number) {
