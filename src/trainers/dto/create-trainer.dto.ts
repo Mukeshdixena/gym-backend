@@ -1,3 +1,4 @@
+// src/trainers/dto/create-trainer.dto.ts
 import {
   IsString,
   IsEmail,
@@ -13,8 +14,9 @@ export class CreateTrainerDto {
   @IsString()
   lastName!: string;
 
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
   @IsString()
   phone!: string;

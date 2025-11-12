@@ -54,7 +54,7 @@ model Trainer {
   userId       Int
   firstName    String
   lastName     String
-  email        String        @unique
+  email        String?        @unique
   phone        String
   address      String?
   salary       Float?
@@ -141,9 +141,9 @@ model Expense {
   category    String
   amount      Float
   description String?
-  paid        Float?        @default(0) // ✅ total paid amount
-  pending     Float?        @default(0) // ✅ remaining amount
-  status      ExpenseStatus @default(PENDING) // ✅ track payment progress
+  paid        Float?        @default(0) 
+  pending     Float?        @default(0) 
+  status      ExpenseStatus @default(PENDING)
   payments    Payment[]
   expenseDate DateTime      @default(now())
   createdAt   DateTime      @default(now())
