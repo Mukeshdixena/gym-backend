@@ -64,7 +64,7 @@ export class ExpensesController {
     if (isNaN(pageNum) || pageNum < 1)
       throw new BadRequestException('Invalid page');
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100)
-      throw new BadRequestException('Limit must be 1–100');
+      throw new BadRequestException('Limit must be 1-100');
 
     return this.expensesService.findAll({
       userId: req.user.id,
